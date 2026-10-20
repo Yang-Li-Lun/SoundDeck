@@ -1,0 +1,8 @@
+<resources>
+    <color name="widget_selected">#F0C568</color>
+    <color name="widget_on_selected">#35270D</color>
+    <color name="widget_outline">#969083</color>
+    <color name="widget_disabled">#BBB3A5</color>
+    <color name="widget_battery_low">#FF8585</color>
+    <color name="widget_battery_unknown">#BBB3A5</color>
+</resources>

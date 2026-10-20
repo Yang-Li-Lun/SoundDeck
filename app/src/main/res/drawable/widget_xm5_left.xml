@@ -1,0 +1,7 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="104dp" android:height="70dp" android:viewportWidth="104" android:viewportHeight="70">
+    <!-- Ear tip faces left; the asymmetric outer shell faces the centre of the widget. -->
+    <path android:fillColor="@android:color/transparent" android:strokeColor="@color/widget_text"
+        android:strokeWidth="1.4" android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M40,28 C24,27 13,33 13,45 C13,58 22,62 39,59 M38,29 C26,33 25,50 36,57 M42,28 C32,32 29,47 40,57 M43,18 C49,4 64,1 76,7 C90,13 93,26 87,39 C84,46 79,52 75,58 C70,67 57,67 48,62 C38,57 35,45 39,34 C41,28 40,24 43,18 Z M61,6 C47,10 42,20 44,35 L49,59 M62,53 C62,60 51,62 51,54 C51,47 61,46 62,53 Z" />
+</vector>

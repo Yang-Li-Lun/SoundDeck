@@ -1,0 +1,88 @@
+<?xml version='1.0' encoding='utf-8'?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:id="@+id/widget_root" android:orientation="vertical" android:paddingHorizontal="10dp" android:paddingVertical="8dp" android:layoutDirection="ltr" android:background="@drawable/widget_background" android:stateListAnimator="@null" android:clickable="false">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="16dp" android:layout_weight="0.25" android:orientation="horizontal">
+        <TextView android:layout_width="0dp" android:layout_height="match_parent" style="@style/Widget.SoundDeck.Text" android:id="@+id/widget_title" android:text="@string/app_name" android:layout_weight="1" />
+        <TextView android:layout_width="0dp" android:layout_height="match_parent" style="@style/Widget.SoundDeck.Text" android:id="@+id/widget_status" android:text="@string/widget_status" android:layout_weight="1" />
+    </LinearLayout>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="44dp" android:layout_weight="0.5" android:orientation="horizontal" android:id="@+id/widget_devices" android:layout_marginTop="4dp" android:layout_marginBottom="4dp">
+        <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:id="@+id/widget_left_group" android:orientation="vertical" android:gravity="center">
+            <ImageView android:layout_width="match_parent" android:layout_height="0dp" android:id="@+id/widget_left_device" android:layout_weight="1" android:paddingHorizontal="8dp" android:scaleType="fitCenter" android:src="@drawable/widget_xm5_left" android:importantForAccessibility="no" />
+            <LinearLayout android:layout_width="wrap_content" android:layout_height="14dp" android:orientation="horizontal" android:gravity="center" android:layout_marginTop="4dp">
+                <ImageView android:layout_width="16dp" android:layout_height="9dp" android:id="@+id/widget_left_battery" android:src="@drawable/widget_battery" android:tint="@color/widget_battery_unknown" android:layout_marginEnd="4dp" android:importantForAccessibility="no" />
+                <TextView android:layout_width="34dp" android:layout_height="match_parent" style="@style/Widget.SoundDeck.Text" android:id="@+id/widget_left" android:text="@string/widget_left_unknown" android:gravity="center" android:autoSizeMaxTextSize="12sp" android:textColor="@color/widget_battery_unknown" />
+            </LinearLayout>
+        </LinearLayout>
+        <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:id="@+id/widget_case_group" android:orientation="vertical" android:gravity="center">
+            <ImageView android:layout_width="match_parent" android:layout_height="0dp" android:id="@+id/widget_case_device" android:layout_weight="1" android:paddingHorizontal="8dp" android:scaleType="fitCenter" android:scaleX="0.9230769" android:scaleY="0.9230769" android:src="@drawable/widget_xm5_case" android:importantForAccessibility="no" />
+            <LinearLayout android:layout_width="wrap_content" android:layout_height="14dp" android:orientation="horizontal" android:gravity="center" android:layout_marginTop="4dp">
+                <ImageView android:layout_width="16dp" android:layout_height="9dp" android:id="@+id/widget_case_battery" android:src="@drawable/widget_battery" android:tint="@color/widget_battery_unknown" android:layout_marginEnd="4dp" android:importantForAccessibility="no" />
+                <TextView android:layout_width="34dp" android:layout_height="match_parent" style="@style/Widget.SoundDeck.Text" android:id="@+id/widget_case" android:text="@string/widget_case_unknown" android:gravity="center" android:autoSizeMaxTextSize="12sp" android:textColor="@color/widget_battery_unknown" />
+            </LinearLayout>
+        </LinearLayout>
+        <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:id="@+id/widget_right_group" android:orientation="vertical" android:gravity="center">
+            <ImageView android:layout_width="match_parent" android:layout_height="0dp" android:id="@+id/widget_right_device" android:layout_weight="1" android:paddingHorizontal="8dp" android:scaleType="fitCenter" android:src="@drawable/widget_xm5_right" android:importantForAccessibility="no" />
+            <LinearLayout android:layout_width="wrap_content" android:layout_height="14dp" android:orientation="horizontal" android:gravity="center" android:layout_marginTop="4dp">
+                <ImageView android:layout_width="16dp" android:layout_height="9dp" android:id="@+id/widget_right_battery" android:src="@drawable/widget_battery" android:tint="@color/widget_battery_unknown" android:layout_marginEnd="4dp" android:importantForAccessibility="no" />
+                <TextView android:layout_width="34dp" android:layout_height="match_parent" style="@style/Widget.SoundDeck.Text" android:id="@+id/widget_right" android:text="@string/widget_right_unknown" android:gravity="center" android:autoSizeMaxTextSize="12sp" android:textColor="@color/widget_battery_unknown" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:layout_weight="0.5" android:orientation="horizontal" android:id="@+id/widget_modes" android:paddingHorizontal="2dp" android:paddingVertical="0dp" android:background="@drawable/widget_button">
+        <TextView android:layout_width="0dp" android:layout_height="match_parent" style="@style/Widget.SoundDeck.Text" android:id="@+id/widget_anc" android:text="@string/anc" android:layout_weight="1" android:paddingHorizontal="2dp" android:paddingVertical="0dp" />
+        <TextView android:layout_width="0dp" android:layout_height="match_parent" style="@style/Widget.SoundDeck.Text" android:id="@+id/widget_ambient" android:text="@string/ambient" android:layout_weight="1" android:paddingHorizontal="2dp" android:paddingVertical="0dp" />
+        <TextView android:layout_width="0dp" android:layout_height="match_parent" style="@style/Widget.SoundDeck.Text" android:id="@+id/widget_off" android:text="@string/off" android:layout_weight="1" android:paddingHorizontal="2dp" android:paddingVertical="0dp" />
+    </LinearLayout>
+    <FrameLayout android:layout_width="match_parent" android:layout_height="37dp" android:layout_weight="2" android:id="@+id/widget_levels">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="3dp" android:layout_gravity="center_vertical" android:translationY="-12dp" android:orientation="horizontal">
+            <ProgressBar android:layout_width="0dp" android:layout_height="3dp" style="?android:attr/progressBarStyleHorizontal" android:id="@+id/widget_track" android:layout_weight="19" android:progressDrawable="@drawable/widget_track" android:importantForAccessibility="no" />
+            <TextView android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:importantForAccessibility="no" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal">
+            <FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1">
+                <ImageView android:layout_width="match_parent" android:layout_height="10dp" android:id="@+id/widget_mark_2" android:layout_gravity="center_vertical" android:translationY="-12dp" android:src="@drawable/widget_tick_mark" android:importantForAccessibility="no" />
+                <TextView android:layout_width="match_parent" android:layout_height="match_parent" style="@style/Widget.SoundDeck.Text" android:id="@+id/widget_tick_2" android:text="@string/widget_tick_2" android:gravity="center" android:paddingTop="20dp" android:paddingBottom="0dp" android:autoSizeMaxTextSize="13sp" />
+            </FrameLayout>
+            <FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1">
+                <ImageView android:layout_width="match_parent" android:layout_height="10dp" android:id="@+id/widget_mark_4" android:layout_gravity="center_vertical" android:translationY="-12dp" android:src="@drawable/widget_tick_mark" android:importantForAccessibility="no" />
+                <TextView android:layout_width="match_parent" android:layout_height="match_parent" style="@style/Widget.SoundDeck.Text" android:id="@+id/widget_tick_4" android:text="@string/widget_tick_4" android:gravity="center" android:paddingTop="20dp" android:paddingBottom="0dp" android:autoSizeMaxTextSize="13sp" />
+            </FrameLayout>
+            <FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1">
+                <ImageView android:layout_width="match_parent" android:layout_height="10dp" android:id="@+id/widget_mark_6" android:layout_gravity="center_vertical" android:translationY="-12dp" android:src="@drawable/widget_tick_mark" android:importantForAccessibility="no" />
+                <TextView android:layout_width="match_parent" android:layout_height="match_parent" style="@style/Widget.SoundDeck.Text" android:id="@+id/widget_tick_6" android:text="@string/widget_tick_6" android:gravity="center" android:paddingTop="20dp" android:paddingBottom="0dp" android:autoSizeMaxTextSize="13sp" />
+            </FrameLayout>
+            <FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1">
+                <ImageView android:layout_width="match_parent" android:layout_height="10dp" android:id="@+id/widget_mark_8" android:layout_gravity="center_vertical" android:translationY="-12dp" android:src="@drawable/widget_tick_mark" android:importantForAccessibility="no" />
+                <TextView android:layout_width="match_parent" android:layout_height="match_parent" style="@style/Widget.SoundDeck.Text" android:id="@+id/widget_tick_8" android:text="@string/widget_tick_8" android:gravity="center" android:paddingTop="20dp" android:paddingBottom="0dp" android:autoSizeMaxTextSize="13sp" />
+            </FrameLayout>
+            <FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1">
+                <ImageView android:layout_width="match_parent" android:layout_height="10dp" android:id="@+id/widget_mark_10" android:layout_gravity="center_vertical" android:translationY="-12dp" android:src="@drawable/widget_tick_mark" android:importantForAccessibility="no" />
+                <TextView android:layout_width="match_parent" android:layout_height="match_parent" style="@style/Widget.SoundDeck.Text" android:id="@+id/widget_tick_10" android:text="@string/widget_tick_10" android:gravity="center" android:paddingTop="20dp" android:paddingBottom="0dp" android:autoSizeMaxTextSize="13sp" />
+            </FrameLayout>
+            <FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1">
+                <ImageView android:layout_width="match_parent" android:layout_height="10dp" android:id="@+id/widget_mark_12" android:layout_gravity="center_vertical" android:translationY="-12dp" android:src="@drawable/widget_tick_mark" android:importantForAccessibility="no" />
+                <TextView android:layout_width="match_parent" android:layout_height="match_parent" style="@style/Widget.SoundDeck.Text" android:id="@+id/widget_tick_12" android:text="@string/widget_tick_12" android:gravity="center" android:paddingTop="20dp" android:paddingBottom="0dp" android:autoSizeMaxTextSize="13sp" />
+            </FrameLayout>
+            <FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1">
+                <ImageView android:layout_width="match_parent" android:layout_height="10dp" android:id="@+id/widget_mark_14" android:layout_gravity="center_vertical" android:translationY="-12dp" android:src="@drawable/widget_tick_mark" android:importantForAccessibility="no" />
+                <TextView android:layout_width="match_parent" android:layout_height="match_parent" style="@style/Widget.SoundDeck.Text" android:id="@+id/widget_tick_14" android:text="@string/widget_tick_14" android:gravity="center" android:paddingTop="20dp" android:paddingBottom="0dp" android:autoSizeMaxTextSize="13sp" />
+            </FrameLayout>
+            <FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1">
+                <ImageView android:layout_width="match_parent" android:layout_height="10dp" android:id="@+id/widget_mark_16" android:layout_gravity="center_vertical" android:translationY="-12dp" android:src="@drawable/widget_tick_mark" android:importantForAccessibility="no" />
+                <TextView android:layout_width="match_parent" android:layout_height="match_parent" style="@style/Widget.SoundDeck.Text" android:id="@+id/widget_tick_16" android:text="@string/widget_tick_16" android:gravity="center" android:paddingTop="20dp" android:paddingBottom="0dp" android:autoSizeMaxTextSize="13sp" />
+            </FrameLayout>
+            <FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1">
+                <ImageView android:layout_width="match_parent" android:layout_height="10dp" android:id="@+id/widget_mark_18" android:layout_gravity="center_vertical" android:translationY="-12dp" android:src="@drawable/widget_tick_mark" android:importantForAccessibility="no" />
+                <TextView android:layout_width="match_parent" android:layout_height="match_parent" style="@style/Widget.SoundDeck.Text" android:id="@+id/widget_tick_18" android:text="@string/widget_tick_18" android:gravity="center" android:paddingTop="20dp" android:paddingBottom="0dp" android:autoSizeMaxTextSize="13sp" />
+            </FrameLayout>
+            <FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1">
+                <ImageView android:layout_width="match_parent" android:layout_height="10dp" android:id="@+id/widget_mark_20" android:layout_gravity="center_vertical" android:translationY="-12dp" android:src="@drawable/widget_tick_mark" android:importantForAccessibility="no" />
+                <TextView android:layout_width="match_parent" android:layout_height="match_parent" style="@style/Widget.SoundDeck.Text" android:id="@+id/widget_tick_20" android:text="@string/widget_tick_20" android:gravity="center" android:paddingTop="20dp" android:paddingBottom="0dp" android:autoSizeMaxTextSize="13sp" />
+            </FrameLayout>
+        </LinearLayout>
+    </FrameLayout>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:layout_weight="0.5" android:orientation="horizontal" android:id="@+id/widget_eq_row" android:layout_marginTop="2dp" android:padding="0dp" android:background="@drawable/widget_button">
+        <TextView android:layout_width="48dp" android:layout_height="match_parent" style="@style/Widget.SoundDeck.Text" android:id="@+id/widget_eq_previous" android:text="@string/widget_previous" android:background="@android:color/transparent" />
+        <TextView android:layout_width="0dp" android:layout_height="match_parent" style="@style/Widget.SoundDeck.Text" android:id="@+id/widget_eq" android:text="@string/widget_eq_unknown" android:layout_weight="1" android:paddingHorizontal="4dp" android:maxLines="2" />
+        <TextView android:layout_width="48dp" android:layout_height="match_parent" style="@style/Widget.SoundDeck.Text" android:id="@+id/widget_eq_next" android:text="@string/widget_next" android:background="@android:color/transparent" />
+    </LinearLayout>
+</LinearLayout>

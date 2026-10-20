@@ -1,0 +1,12 @@
+<resources>
+    <style name="Theme.SoundDeck" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:colorAccent">#52674D</item>
+        <item name="android:windowBackground">#F8F9F2</item>
+    </style>
+    <color name="widget_bg">#241F16</color>
+    <color name="widget_text">#F8F2E7</color>
+    <color name="widget_button">#342F25</color>
+</resources>

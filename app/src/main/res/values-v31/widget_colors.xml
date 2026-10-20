@@ -1,0 +1,9 @@
+<resources>
+    <color name="widget_bg">#241F16</color>
+    <color name="widget_text">#F8F2E7</color>
+    <color name="widget_button">#342F25</color>
+    <color name="widget_selected">#F0C568</color>
+    <color name="widget_on_selected">#35270D</color>
+    <color name="widget_outline">#969083</color>
+    <color name="widget_disabled">#BBB3A5</color>
+</resources>

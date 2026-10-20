@@ -1,0 +1,29 @@
+<resources>
+    <string name="app_name">SoundDeck</string>
+    <string name="tile_name">SoundDeck 降噪</string>
+    <string name="widget_name">SoundDeck 耳機控制</string>
+    <string name="widget_description">4×3：三模式、環境聲音強度、EQ 與耳機電量。</string>
+    <string name="widget_status">尚未連線</string>
+    <string name="anc">降噪</string>
+    <string name="ambient">環境聲音</string>
+    <string name="off">關閉</string>
+    <string name="widget_eq_unknown">—</string>
+    <string name="widget_previous">〈</string>
+    <string name="widget_next">〉</string>
+    <string name="widget_left_unknown">--%</string>
+    <string name="widget_right_unknown">--%</string>
+    <string name="widget_case_unknown">--%</string>
+    <string name="widget_level_unknown">環境聲音 — / 20</string>
+    <string name="widget_tick">·</string>
+    <string name="widget_voice_unknown">聚焦人聲：—</string>
+    <string name="widget_tick_2">2</string>
+    <string name="widget_tick_4">4</string>
+    <string name="widget_tick_6">6</string>
+    <string name="widget_tick_8">8</string>
+    <string name="widget_tick_10">10</string>
+    <string name="widget_tick_12">12</string>
+    <string name="widget_tick_14">14</string>
+    <string name="widget_tick_16">16</string>
+    <string name="widget_tick_18">18</string>
+    <string name="widget_tick_20">20</string>
+</resources>

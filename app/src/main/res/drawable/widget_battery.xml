@@ -1,0 +1,10 @@
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@drawable/widget_battery_outline" />
+    <item android:left="2dp" android:right="2dp" android:top="2dp" android:bottom="2dp">
+        <clip android:clipOrientation="horizontal" android:gravity="left">
+            <shape android:shape="rectangle">
+                <solid android:color="@color/widget_text" />
+            </shape>
+        </clip>
+    </item>
+</layer-list>
