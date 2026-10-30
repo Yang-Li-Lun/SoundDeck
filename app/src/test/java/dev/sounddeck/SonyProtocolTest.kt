@@ -57,7 +57,7 @@ class SonyProtocolTest {
         for (sample in samples) for (n in 0 until sample.size) assertNull(SonyProtocol.parse(sample.copyOf(n)))
     }
     @Test fun unknownOrDisconnectedStateCannotEnableControls() {
-        val known = HeadphoneState(connection = ConnectionState.READY, functions = setOf(0x6b), noise = NoiseState(NoiseMode.ANC, 10, false, 0))
+        val known = HeadphoneState(noiseSettled = true, connection = ConnectionState.READY, functions = setOf(0x6b), noise = NoiseState(NoiseMode.ANC, 10, false, 0))
         assertTrue(known.canControlNoise)
         assertFalse(known.copy(connection = ConnectionState.DISCONNECTED).canControlNoise)
         assertFalse(known.copy(pending = "waiting").canControlNoise)

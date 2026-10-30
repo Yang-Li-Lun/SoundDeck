@@ -14,7 +14,7 @@ class StatusNotificationTest {
     @Test fun statusContainsOnlyReportedModeAndBatteriesWithoutAnyActions() {
         val c=InstrumentationRegistry.getInstrumentation().targetContext
         for (mode in NoiseMode.entries) {
-            val s=HeadphoneState(connection=ConnectionState.READY,noise=NoiseState(mode,7,false,1),
+            val s=HeadphoneState(connection=ConnectionState.READY,noiseSettled = true, noise=NoiseState(mode,7,false,1),
                 left=BatteryReading(0,false),right=BatteryReading(100,true),pending="等待確認")
             val n=StatusNotification.build(c,s)
             assertTrue(n.actions.isNullOrEmpty())
@@ -24,7 +24,7 @@ class StatusNotificationTest {
             assertTrue(n.flags and Notification.FLAG_ONGOING_EVENT != 0)
         }
         val unknown=StatusNotification.build(c,HeadphoneState())
-        assertEquals("環境聲音模式尚未回報",unknown.extras.getString(Notification.EXTRA_TITLE))
+        assertEquals("環境聲音模式尚未確認",unknown.extras.getString(Notification.EXTRA_TITLE))
         assertEquals("左耳 —｜充電盒 —｜右耳 —",unknown.extras.getString(Notification.EXTRA_TEXT))
     }
     @Test fun androidSystemPublishesActionlessNotification() {
@@ -37,7 +37,7 @@ class StatusNotificationTest {
         manager.createNotificationChannel(NotificationChannel(ControlService.CHANNEL,"耳機連線狀態",NotificationManager.IMPORTANCE_LOW))
         i.uiAutomation.adoptShellPermissionIdentity("android.permission.POST_NOTIFICATIONS")
         try {
-            val state=HeadphoneState(connection=ConnectionState.READY,noise=NoiseState(NoiseMode.AMBIENT,7,false,1),left=BatteryReading(72,false))
+            val state=HeadphoneState(connection=ConnectionState.READY,noiseSettled = true, noise=NoiseState(NoiseMode.AMBIENT,7,false,1),left=BatteryReading(72,false))
             manager.notify(505,StatusNotification.build(c,state))
             val device=androidx.test.uiautomator.UiDevice.getInstance(i)
             device.openNotification()

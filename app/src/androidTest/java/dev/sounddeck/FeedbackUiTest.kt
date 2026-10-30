@@ -21,7 +21,7 @@ import org.junit.Test
 class FeedbackUiTest {
     @get:Rule val compose=createComposeRule()
     private var state by mutableStateOf(HeadphoneState(connection=ConnectionState.READY,
-        functions=setOf(0x6b),noise=NoiseState(NoiseMode.AMBIENT,12,false,1)))
+        functions=setOf(0x6b),noiseSettled = true, noise=NoiseState(NoiseMode.AMBIENT,12,false,1)))
     private val dismissed=mutableListOf<Long>()
     private fun screen() {
         compose.setContent { SoundDeckTheme("dark",false) {
@@ -98,7 +98,7 @@ class FeedbackUiTest {
         assertTrue(mode.boundsInRoot.height>=mode.size.height-1)
         assertTrue(pill.boundsInRoot.height>=pill.size.height-1)
         assertTrue(pill.boundsInRoot.bottom<=height && pill.boundsInRoot.right<=width)
-        compose.onNodeWithText("設定已套用").assertIsDisplayed()
+        compose.onNodeWithText("耳機回報設定相符").assertIsDisplayed()
         save("synthetic-pill-${width}x$height-font2.png")
     }
     @Test fun shortLandscapeLargeFontPillDoesNotCoverControls()=shortPill(640,320)

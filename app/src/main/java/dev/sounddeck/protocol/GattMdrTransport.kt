@@ -11,10 +11,12 @@ import java.io.IOException
 interface GattDriver : Closeable {
     interface Listener {
         fun connected(status: Int, connected: Boolean)
+        fun disconnected(status: Int) = connected(status, false)
         fun services(status: Int, services: List<SonyGattProfile.Service>)
         fun descriptorWritten(status: Int, service: String, characteristic: String, descriptor: String)
         fun characteristicWritten(status: Int, service: String, characteristic: String)
         fun notification(service: String, characteristic: String, value: ByteArray)
+        fun mtuChanged(mtu: Int, status: Int) {}
     }
     fun open(listener: Listener): Boolean
     fun discover(): Boolean
@@ -50,6 +52,8 @@ class GattMdrTransport(
             if (!driver.enableNotifications()) throw IOException("GATT local notification registration rejected")
             operation(Operation.SUBSCRIBE) { driver.subscribe(profile.indication) }
             selection = profile
+            observe("GATT_CONFIG txWrite=${if (profile.writeWithResponse) "with_response" else "without_response"} " +
+                "rx=${if (profile.indication) "indication" else "notification"} frameChunkLimit=20 mtuRequest=none")
             diagnostic("GATT subscribed; ATT payload <=20 bytes; awaiting MDR identity")
         } catch (e: Exception) { close(); throw e }
     }
@@ -70,9 +74,10 @@ class GattMdrTransport(
     }
 
     override suspend fun read(): ByteArray {
-        if (closed) throw terminal ?: IOException("GATT 已關閉。")
-        return incoming.receive().also { if (closed) throw terminal ?: IOException("GATT 已關閉。") }
+        checkOpen()
+        return incoming.receive().also { checkOpen() }
     }
+    private fun checkOpen() = synchronized(lock) { if (closed) throw terminal ?: IOException("GATT 已關閉。") }
     override suspend fun write(bytes: ByteArray) = frameMutex.withLock {
         val profile = selection ?: throw IOException("GATT 尚未完成服務與通知驗證。")
         for (chunk in SonyGattProfile.fragments(bytes)) operation(Operation.WRITE) { driver.write(chunk, profile.writeWithResponse) }
@@ -86,6 +91,15 @@ class GattMdrTransport(
         diagnostic("GATT connection status=$status connected=$connected")
         if (status != 0 || !connected) fail(IOException("GATT 連線結束 status=$status；原因未確認。"))
         else completed(Operation.CONNECT, status)
+    }
+    override fun disconnected(status: Int) {
+        if (closed) return
+        // Only recognized link-end statuses qualify; authentication, local termination,
+        // service invalidation and unknown Android errors keep their fail-closed behavior.
+        if (status == 0 || status == 8) {
+            diagnostic("GATT disconnected status=$status")
+            fail(TransportDisconnected("GATT 控制傳輸已中斷 status=$status。"))
+        } else connected(status, false)
     }
     override fun services(status: Int, services: List<SonyGattProfile.Service>) {
         if (closed) return
@@ -106,13 +120,20 @@ class GattMdrTransport(
     override fun characteristicWritten(status: Int, service: String, characteristic: String) {
         if (service.equals(SonyGattProfile.SERVICE, true) && characteristic.equals(SonyGattProfile.TX, true)) completed(Operation.WRITE, status)
     }
+    /** An unsolicited platform callback is evidence only; it never completes a pending GATT operation. */
+    override fun mtuChanged(mtu: Int, status: Int) {
+        val stage = synchronized(lock) { if (closed) return; pending?.first?.name ?: "IDLE" }
+        observe("GATT_MTU_CALLBACK mtu=$mtu status=$status pendingStage=$stage " +
+            "source=callback_only frameChunkLimit=20")
+    }
+    private fun observe(text: String) { runCatching { diagnostic(text) } }
     override fun notification(service: String, characteristic: String, value: ByteArray) {
         if (closed || !service.equals(SonyGattProfile.SERVICE, true) || !characteristic.equals(SonyGattProfile.RX, true)) return
         if (value.isEmpty()) return
         if (value.size > 512 || incoming.trySend(value.copyOf()).isFailure) fail(IOException("GATT 回報緩衝超限，已停止連線。"))
     }
     private fun fail(error: IOException) {
-        synchronized(lock) { if (closed) return; terminal = error }
+        synchronized(lock) { if (closed || terminal != null) return; terminal = error }
         diagnostic(error.message ?: "GATT failure")
         close()
     }
@@ -120,13 +141,17 @@ class GattMdrTransport(
         val task = synchronized(lock) {
             if (closed) return
             closed = true
+            selection = null
+            // A concurrent Session.close must wait for the old driver to finish releasing GATT.
+            runCatching { driver.close() }.onFailure {
+                // Do not retain a recoverable cause when release itself could not be confirmed.
+                terminal = IOException("GATT 關閉未確認；停止恢復：${ConnectionDiagnostics.describe(it)}")
+            }
             pending?.second.also { pending = null }
         }
         val reason = terminal ?: IOException("GATT 已關閉。")
         task?.completeExceptionally(reason)
         incoming.close(reason)
-        selection = null
-        runCatching { driver.close() }
     }
 }
 

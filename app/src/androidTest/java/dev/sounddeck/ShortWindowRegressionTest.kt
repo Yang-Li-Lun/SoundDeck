@@ -22,7 +22,7 @@ class ShortWindowRegressionTest {
             CompositionLocalProvider(LocalDensity provides Density(1f,2f)) {
                 Box(Modifier.width(640.dp).height(320.dp)) { SoundDeckTheme {
                     SoundDeckScreen(HeadphoneState(connection=ConnectionState.READY,functions=setOf(0x6b),
-                        noise=NoiseState(NoiseMode.AMBIENT,7,false,1),message="耳機回報與要求不同；畫面保留實際狀態，請重新整理。"),
+                        noiseSettled = true, noise=NoiseState(NoiseMode.AMBIENT,7,false,1),message="耳機回報與要求不同；畫面保留實際狀態，請重新整理。"),
                         true,{},{},{},{},{},{},{},{})
                 } }
             }

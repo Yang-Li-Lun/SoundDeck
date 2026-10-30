@@ -18,12 +18,12 @@ class NoiseTileService : TileService() {
         qsTile?.apply {
             label = "SoundDeck 降噪"
             this.state = when {
-                state.pending != null -> Tile.STATE_UNAVAILABLE
-                state.ready && state.noise?.mode == NoiseMode.ANC -> Tile.STATE_ACTIVE
+                state.pending != null || (state.ready && !state.canControlNoise) -> Tile.STATE_UNAVAILABLE
+                state.ready && state.confirmedNoise?.mode == NoiseMode.ANC -> Tile.STATE_ACTIVE
                 else -> Tile.STATE_INACTIVE
             }
-            if (Build.VERSION.SDK_INT >= 29) subtitle = state.pending ?: state.noise?.mode?.label ?: "點選連線"
-            if (Build.VERSION.SDK_INT >= 30) stateDescription = state.noise?.mode?.label ?: "尚未連線"
+            if (Build.VERSION.SDK_INT >= 29) subtitle = state.pending ?: if (state.ready) state.noiseStatusLabel else "點選連線"
+            if (Build.VERSION.SDK_INT >= 30) stateDescription = if (state.ready) state.noiseStatusLabel else "尚未連線"
             updateTile()
         }
     }

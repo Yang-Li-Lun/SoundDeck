@@ -40,6 +40,18 @@ Sony 的布林值並不統一：DSEE Auto 為 `01`，Speak-to-Chat On 為 `00`�
 
 所有控制先確認能力，必要時重新讀取其他欄位，寫入後 GET 回讀比較。ACK 只代表收到封包；不保證設定生效。拒絕、不同回報、逾時、未知格式均不報成功。損壞封包丟棄，同一 session 累計超過八個無效封包則關閉連線；寫入不盲目重試。
 
+## 前景連線恢復與回饋
+
+沿用成功端點紀錄與前景單次自動連線。配對清單以實際位址比對「上次成功控制」及通道；記錄編號只是顯示順序，選擇裝置不會覆寫成功紀錄。手動選擇與進階通道設定保留。
+
+只有已通過完整 MDR 驗證的連線，在 App 前景收到實際 GATT `STATE_DISCONNECTED` 且 status 為 `0` 或 `0x08` 時，才允許有限恢復。這兩個值只在連線狀態 callback 解讀；GATT 讀寫操作的相同數值不視為連線逾時。每次連線工作最多兩次恢復，分別等待 1 秒、3 秒；即使短暫恢復成功，額度也不重設。舊 Session／reader／GATT 必須先關閉，再以相同裝置與通道重新讀取身分、能力及狀態。每個 Session 使用新指令佇列，不重播已排隊或已送出的設定。
+
+手動斷線、開始手動選擇、離開前景與藍牙關閉會取消恢復等待或恢復握手。首次連線失敗、設定操作中斷而結果不明、協定錯誤、服務失效、權限錯誤、遠端／本機主動結束及未知 GATT 狀態不自動恢復。RFCOMM 的 EOF／一般 I/O 例外缺少可靠原因分類，維持停止控制並由使用者重新連線。
+
+介面區分「連線失敗」、「控制連線中斷」、「設定尚未確認」及「耳機回報與要求不同」。前兩者提供重新連線入口；仍有控制連線的未確認／不符回報提供只讀的重新整理。診斷保留有限恢復結果、設定目標與實際回讀欄位；不記錄完整藍牙位址。BLE 控制連線不作為 LC3 音訊證據。
+
+設計參考 [Nordic BLE Library 的有限重試與取消](https://github.com/nordicsemi/Android-BLE-Library/blob/main/ble/src/main/java/no/nordicsemi/android/ble/ConnectRequest.java)、[斷線分類](https://github.com/nordicsemi/Android-BLE-Library/blob/main/ble/src/main/java/no/nordicsemi/android/ble/BleManagerHandler.java)，以及 [Sony Device Center 的生命週期與寫入驗證](https://github.com/marconvcm/sony-device-center/blob/main/docs/ipc-and-lifecycle.md)。不引入其依賴、持續背景重連或無限重試，也不變更 Sony MDR payload。這些參考不是本專案的 WF-1000XM5 實機驗收。
+
 ## 聚焦人聲與語音偵測靈敏度
 
 App 聚焦人聲使用 `6B / subtype 17`。切換前先 `66 17` 取得最新回覆，只接受 settled 且 Ambient，再發 `68 17`，保留當前強度與模式，最後 `66 17` 比對完整狀態。Widget 不提供聚焦人聲開關。外部已切 ANC／Off 時拒絕操作，無額外連線。
@@ -53,6 +65,18 @@ App 聚焦人聲使用 `6B / subtype 17`。切換前先 `66 17` 取得最新回�
 - Sony [Speak-to-Chat 說明](https://helpguide.sony.net/mdr/2963/v1/zh-tw/contents/TP1000783392.html) 說明高／低靈敏度及可調整語音偵測，但沒有提供 wire format。
 
 App 只在 `FC` 能力及有效回報後啟用三個已知選項。沒有本機預設，也不從 `preview` 推導靈敏度。每次操作為 `FA 0C` → `FC 0C requested freshTimeout` → `FA 0C`，靈敏度與保留的 timeout 都相符才成功；不送 `F8`，不變更 Speak-to-Chat 開關或 preview。`FD` 外部通知亦更新實際狀態。未知 subtype、長度、列舉值均拒絕；逾時或不支援回覆沿用 Session 停止控制的政策。
+
+## 回讀提示、切換狀態與被動診斷
+
+回讀比較相符時，介面顯示「耳機回報設定相符」。此結果只表示該次回覆符合既有欄位比較規則，不證明聲學效果、官方 App 狀態或後續回報相同。一般模式操作只比較模式與使用者指定的 level／voice；聚焦人聲比較完整 NoiseState。DSEE Auto 設定不等於效果正在運作。
+
+`noiseSettled` 保留最近一次 `67/69` 的 `ValueChangeStatus`：`CHANGED=01` 為 true，`UNDER_CHANGING=00` 為 false，尚未回報為 null。切換中的資料保留供診斷，但不作為已確認模式或開放降噪控制的依據；App、Widget、通知與 Tile 顯示切換狀態。降噪、環境刻度與聚焦人聲寫入前，必須取得本次 GET 的 settled 回覆，且沒有被較晚的不同／切換中通知取代。未通過即停止寫入，沒有等待、輪詢或重送。回讀後若已收到較晚的切換中／不同狀態，不發出相符提示。
+
+被動紀錄附有程序內 Session `sid`、操作 `op`、請求 `req`、事件與 frame 編號、牆鐘毫秒及 Session 單調經過毫秒。`op=0` 表示尚未進入控制操作的初始化／閒置資料；`CONTROL_END completed` 只表示呼叫完成，設定結果仍看 `CONTROL … readback … matches`。TX 區分開始與 transportComplete；RX 保留 type、序號、長度、command、subtype，以及 ACK 預期／實收／完成結果、解析、去重、狀態更新與回覆配對。`replyForReq` 標示實際配對的請求，與 RX 到達時的 `req` 分開；這些編號不加入 wire payload，也不改變現有配對或序號規則。checksum／長度等被 decoder 拒絕時只記錄計數。
+
+原始 payload 僅允許精確 command／subtype／長度的降噪、DSEE、Speak-to-Chat（含 preview／延伸參數）、codec／DSEE effect、固定訊息 alert 與電量格式；其他 payload、未知長度與 Table 2 內容遮蔽，只保留封包標頭資訊。未新增 effect／alert 查詢、訂閱或回覆，也不變更任何設定封包。診斷輸出例外不影響 Session。
+
+診斷在記憶體最多保留 1024 行，每行最多 512 字元，匯出標示淘汰行數。每項實機操作後應立即匯出，包含操作前 GET、SET、ACK、操作後 GET 及期間通知；DSEE 需要 `E3/E5` 可用狀態，Speak-to-Chat 需要 `F7/F9` 的 preview。匯出同時附目前 settled、DSEE 可用性及 Speak 設定。關聯編號及相對時間只用於還原觀察順序，不能證明延遲 RET 屬於哪個實際耳機操作，也不能代替同時間官方 App 與實際效果的對照。
 
 ## 尚未證實的邊界
 

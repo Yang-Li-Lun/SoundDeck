@@ -22,7 +22,7 @@ class WidgetLayoutTest {
     @Test fun compactAndExpandedRemoteViewsFitAndShowAllThreeBatteriesAndModes() {
         val instrument = InstrumentationRegistry.getInstrumentation()
         val state = HeadphoneState(connection = ConnectionState.READY, functions = setOf(0x6b,0x50),
-            noise = NoiseState(NoiseMode.AMBIENT, 12, false, 1), left = BatteryReading(100,true), right = BatteryReading(0,false),
+            noiseSettled = true, noise = NoiseState(NoiseMode.AMBIENT, 12, false, 1), left = BatteryReading(100,true), right = BatteryReading(0,false),
             case = BatteryReading(null,true), eq = SonyEvent.Equalizer(0x10,emptyList()), eqAvailable = true,
             eqCapability = SonyEvent.EqCapability(6,21,listOf(EqPreset(0x10,""))))
         instrument.runOnMainSync {
@@ -120,7 +120,7 @@ class WidgetLayoutTest {
         instrument.runOnMainSync {
             val context = instrument.targetContext
             val state = HeadphoneState(connection = ConnectionState.READY, functions = setOf(0x6b),
-                noise = NoiseState(NoiseMode.ANC,10,false,0), pending = "等待耳機確認…")
+                noiseSettled = true, noise = NoiseState(NoiseMode.ANC,10,false,0), pending = "等待耳機確認…")
             val root = SoundDeckWidget.render(context,state,true).apply(context,FrameLayout(context))
             (listOf(R.id.widget_anc,R.id.widget_ambient,R.id.widget_off,R.id.widget_eq_previous,R.id.widget_eq_next)+SoundDeckWidget.tickIds.toList()).forEach {
                 assertFalse(root.findViewById<View>(it).isEnabled)
@@ -133,7 +133,7 @@ class WidgetLayoutTest {
         val instrument=InstrumentationRegistry.getInstrumentation()
         instrument.runOnMainSync {
             val c=instrument.targetContext
-            val s=HeadphoneState(connection=ConnectionState.READY,functions=setOf(0x6b),noise=NoiseState(NoiseMode.ANC,7,false,0))
+            val s=HeadphoneState(connection=ConnectionState.READY,functions=setOf(0x6b),noiseSettled = true, noise=NoiseState(NoiseMode.ANC,7,false,0))
             val root=SoundDeckWidget.render(c,s,true).apply(c,FrameLayout(c))
             SoundDeckWidget.tickIds.forEach { assertFalse(root.findViewById<View>(it).isEnabled) }
             assertTrue(SoundDeckWidget.tickIds.none { root.findViewById<TextView>(it).contentDescription.contains("目前強度") })
@@ -147,7 +147,7 @@ class WidgetLayoutTest {
             val context=instrument.targetContext
             val density=context.resources.displayMetrics.density
             val ready=HeadphoneState(connection=ConnectionState.READY,functions=setOf(0x6b,0x50),
-                noise=NoiseState(NoiseMode.AMBIENT,20,false,1),left=BatteryReading(100,false),
+                noiseSettled = true, noise=NoiseState(NoiseMode.AMBIENT,20,false,1),left=BatteryReading(100,false),
                 case=BatteryReading(53,false),right=BatteryReading(100,false),
                 eq=SonyEvent.Equalizer(0xa0,emptyList()),eqAvailable=true,
                 eqCapability=SonyEvent.EqCapability(6,21,listOf(EqPreset(0xa0,""),EqPreset(0x10,""))))
@@ -171,7 +171,7 @@ class WidgetLayoutTest {
                 }
                 val expected=positions()
                 for(state in listOf(ready.copy(left=BatteryReading(19,true),case=BatteryReading(null,null),right=BatteryReading(0,false)),
-                    ready.copy(noise=NoiseState(NoiseMode.ANC,7,true,0),eq=SonyEvent.Equalizer(0x10,emptyList()),pending="等待確認"),
+                    ready.copy(noiseSettled = true, noise=NoiseState(NoiseMode.ANC,7,true,0),eq=SonyEvent.Equalizer(0x10,emptyList()),pending="等待確認"),
                     HeadphoneState(),ready)) {
                     SoundDeckWidget.render(context,state,expanded).reapply(context,root)
                     assertEquals("refresh must preserve geometry at ${width}x$height",expected,positions())

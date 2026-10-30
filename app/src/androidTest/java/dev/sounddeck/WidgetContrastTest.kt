@@ -26,7 +26,7 @@ class WidgetContrastTest {
                     assertTrue("contrast >= 4.5 dark=$dark",ColorUtils.calculateContrast(c.getColor(fg),c.getColor(bg))>=4.5)
                 }
                 assertTrue(ColorUtils.calculateContrast(c.getColor(R.color.widget_selected),c.getColor(R.color.widget_button))>=3)
-                val s=HeadphoneState(connection=ConnectionState.READY,functions=setOf(0x6b),noise=NoiseState(NoiseMode.AMBIENT,7,false,1))
+                val s=HeadphoneState(connection=ConnectionState.READY,functions=setOf(0x6b),noiseSettled = true, noise=NoiseState(NoiseMode.AMBIENT,7,false,1))
                 val root=SoundDeckWidget.render(c,s,true).apply(c,FrameLayout(c))
                 val d=c.resources.displayMetrics.density
                 root.measure(View.MeasureSpec.makeMeasureSpec((360*d).toInt(),View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec((360*d).toInt(),View.MeasureSpec.EXACTLY))
@@ -50,7 +50,7 @@ class WidgetContrastTest {
             fun context(dark:Boolean)=i.targetContext.createConfigurationContext(Configuration(i.targetContext.resources.configuration).apply {
                 uiMode=(uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or (if(dark) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO)
             })
-            val state=HeadphoneState(connection=ConnectionState.READY,functions=setOf(0x6b,0x50),noise=NoiseState(NoiseMode.AMBIENT,12,true,1),
+            val state=HeadphoneState(connection=ConnectionState.READY,functions=setOf(0x6b,0x50),noiseSettled = true, noise=NoiseState(NoiseMode.AMBIENT,12,true,1),
                 eq=SonyEvent.Equalizer(0,emptyList()),eqAvailable=true,eqCapability=SonyEvent.EqCapability(6,21,listOf(EqPreset(0,""))))
             for(dark in listOf(false,true)) {
                 val host=context(dark)

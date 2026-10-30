@@ -25,7 +25,8 @@ class BluetoothGattDriver(private val context: Context, private val device: Blue
     private fun receiver(g: BluetoothGatt): GattDriver.Listener? = synchronized(lock) { if (!closed && gatt === g) listener else null }
     private val callback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(g: BluetoothGatt, status: Int, newState: Int) {
-            if (newState == BluetoothProfile.STATE_CONNECTED || newState == BluetoothProfile.STATE_DISCONNECTED || status != BluetoothGatt.GATT_SUCCESS)
+            if (newState == BluetoothProfile.STATE_DISCONNECTED) receiver(g)?.disconnected(status)
+            else if (newState == BluetoothProfile.STATE_CONNECTED || status != BluetoothGatt.GATT_SUCCESS)
                 receiver(g)?.connected(status, newState == BluetoothProfile.STATE_CONNECTED)
         }
         override fun onServicesDiscovered(g: BluetoothGatt, status: Int) {
@@ -41,6 +42,9 @@ class BluetoothGattDriver(private val context: Context, private val device: Blue
         }
         override fun onCharacteristicWrite(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
             receiver(g)?.characteristicWritten(status, characteristic.service.uuid.toString(), characteristic.uuid.toString())
+        }
+        override fun onMtuChanged(g: BluetoothGatt, mtu: Int, status: Int) {
+            receiver(g)?.mtuChanged(mtu, status)
         }
         override fun onCharacteristicChanged(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic, value: ByteArray) {
             receiver(g)?.notification(characteristic.service.uuid.toString(), characteristic.uuid.toString(), value.copyOf())

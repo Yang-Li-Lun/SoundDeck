@@ -41,7 +41,8 @@ class SoundDeckWidget : AppWidgetProvider() {
         fun render(context: Context, state: HeadphoneState, expanded: Boolean,
             commandIntent: (String, Int) -> PendingIntent = { action, level -> ControlService.pending(context,action,level) }): RemoteViews {
             val view = RemoteViews(context.packageName, if (expanded) R.layout.sounddeck_widget_expanded else R.layout.sounddeck_widget)
-            view.setTextViewText(R.id.widget_status, if (state.pending != null) "等待確認" else state.connection.label)
+            view.setTextViewText(R.id.widget_status, if (state.pending != null) "等待確認"
+                else if (state.ready && state.noiseSettled == false) "切換中" else state.connection.label)
             fun battery(textId: Int, iconId: Int, name: String, reading: BatteryReading?) {
                 // Only verified, current-session values may be presented as a battery reading.
                 val percent = reading?.percent?.takeIf { state.ready && it in 0..100 }
@@ -77,7 +78,7 @@ class SoundDeckWidget : AppWidgetProvider() {
                 Triple(R.id.widget_ambient,NoiseMode.AMBIENT,ControlService.AMBIENT),
                 Triple(R.id.widget_off,NoiseMode.OFF,ControlService.OFF)).forEach { (id,mode,action) ->
                 control(id,action,state.canControlNoise)
-                val selected = state.ready && state.noise?.mode == mode
+                val selected = state.ready && state.confirmedNoise?.mode == mode
                 view.setInt(id,"setBackgroundResource",if (selected) R.drawable.widget_button_selected else android.R.color.transparent)
                 view.setTextViewText(id, mode.label)
                 if (selected) textColor(id,R.color.widget_on_selected)

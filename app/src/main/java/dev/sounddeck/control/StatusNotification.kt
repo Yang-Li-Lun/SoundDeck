@@ -9,7 +9,7 @@ import dev.sounddeck.data.HeadphoneState
 /** Status only. A pending command never replaces the last reported mode or batteries. */
 object StatusNotification {
     fun build(context: Context, state: HeadphoneState): Notification {
-        val mode = state.noise?.mode?.label ?: "環境聲音模式尚未回報"
+        val mode = state.noiseStatusLabel
         val battery = ControlService.batteryText(state)
         return NotificationCompat.Builder(context, ControlService.CHANNEL)
             .setSmallIcon(R.drawable.ic_headphones).setContentTitle(mode)

@@ -7,6 +7,11 @@ import kotlinx.coroutines.test.*
 import org.junit.Assert.*
 import org.junit.Test
 import java.io.IOException
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
+import java.util.concurrent.atomic.AtomicBoolean
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class GattTransportTest {
@@ -25,6 +30,7 @@ class GattTransportTest {
         var writeStatus = 0
         var wrongWriteCallback = false
         var onBytes: ((ByteArray) -> Unit)? = null
+        var onClose: (() -> Unit)? = null
         override fun open(listener: GattDriver.Listener): Boolean {
             events = listener
             if (connectImmediately) events.connected(0, true)
@@ -44,7 +50,7 @@ class GattTransportTest {
             return true
         }
         fun emit(value: ByteArray) = events.notification(SonyGattProfile.SERVICE, SonyGattProfile.RX, value)
-        override fun close() { closeCount++ }
+        override fun close() { closeCount++; onClose?.invoke() }
     }
 
     @Test fun onlyExactServiceAndNamedCharacteristicsCanBeUsed() = runTest {
@@ -96,6 +102,78 @@ class GattTransportTest {
         assertTrue(driver.response)
         transport.close()
     }
+    @Test fun mtuCallbacksCannotCompletePendingOperationsOrChangeFragmentSize() = runTest {
+        val driver = Driver().apply { connectImmediately = false }
+        val diagnostics = mutableListOf<String>()
+        val transport = GattMdrTransport(driver, diagnostics::add)
+        val connecting = launch { transport.connect() }
+        runCurrent()
+        driver.events.mtuChanged(517, 0)
+        driver.events.mtuChanged(23, 257)
+        runCurrent()
+        assertTrue(connecting.isActive)
+        assertEquals(0, driver.subscribeCount)
+        assertTrue(driver.writes.isEmpty())
+        driver.events.connected(0, true)
+        runCurrent()
+        assertTrue(connecting.isCompleted)
+        assertEquals(1, driver.subscribeCount)
+        assertTrue(diagnostics.any { it == "GATT_CONFIG txWrite=with_response rx=notification frameChunkLimit=20 mtuRequest=none" })
+
+        driver.wrongWriteCallback = true
+        val writing = launch { transport.write(ByteArray(45) { it.toByte() }) }
+        runCurrent()
+        assertEquals(1, driver.writes.size)
+        driver.events.mtuChanged(517, 0)
+        driver.events.mtuChanged(23, 257)
+        runCurrent()
+        assertTrue(writing.isActive)
+        assertEquals(1, driver.writes.size)
+        driver.wrongWriteCallback = false
+        driver.events.characteristicWritten(0, SonyGattProfile.SERVICE, SonyGattProfile.TX)
+        runCurrent()
+        assertTrue(writing.isCompleted)
+        assertEquals(listOf(20, 20, 5), driver.writes.map { it.size })
+        assertArrayEquals(ByteArray(45) { it.toByte() }, driver.writes.reduce { a, b -> a + b })
+        assertTrue(driver.response)
+        assertEquals(2, diagnostics.count { it.startsWith("GATT_MTU_CALLBACK") && "pendingStage=CONNECT" in it })
+        assertEquals(2, diagnostics.count { it.startsWith("GATT_MTU_CALLBACK") && "pendingStage=WRITE" in it })
+
+        driver.emit(byteArrayOf(7))
+        assertArrayEquals(byteArrayOf(7), transport.read())
+        transport.close()
+        val count = diagnostics.size
+        driver.events.mtuChanged(517, 0)
+        assertEquals(count, diagnostics.size)
+        assertEquals(1, driver.closeCount)
+    }
+    @Test fun failingPassiveGattDiagnosticsLeaveNoResponseAndIndicationPathUnchanged() = runTest {
+        val driver = Driver()
+        driver.services = listOf(driver.services.single().copy(characteristics = listOf(
+            SonyGattProfile.Characteristic(SonyGattProfile.TX, SonyGattProfile.WRITE_NO_RESPONSE),
+            SonyGattProfile.Characteristic(SonyGattProfile.RX, SonyGattProfile.INDICATE, listOf(SonyGattProfile.CCCD)))))
+        val observations = mutableListOf<String>()
+        val transport = GattMdrTransport(driver, diagnostic = {
+            if (it.startsWith("GATT_CONFIG") || it.startsWith("GATT_MTU_CALLBACK")) {
+                observations += it
+                error("diagnostic sink unavailable")
+            }
+        })
+        transport.connect()
+        driver.events.mtuChanged(23, 257)
+        transport.write(byteArrayOf(1, 2, 3))
+        driver.emit(byteArrayOf(4))
+        assertArrayEquals(byteArrayOf(4), transport.read())
+        assertEquals(2, observations.size)
+        assertEquals("GATT_CONFIG txWrite=without_response rx=indication frameChunkLimit=20 mtuRequest=none", observations.first())
+        assertTrue(driver.indication)
+        assertFalse(driver.response)
+        assertEquals(1, driver.subscribeCount)
+        assertEquals(1, driver.writes.size)
+        assertArrayEquals(byteArrayOf(1, 2, 3), driver.writes.single())
+        transport.close()
+        assertEquals(1, driver.closeCount)
+    }
     @Test fun subscriptionFailureClosesWithoutProtocolWrites() = runTest {
         val driver = Driver().also { it.subscribeStatus = 5 }
         val transport = GattMdrTransport(driver)
@@ -141,6 +219,122 @@ class GattTransportTest {
         try { transport.read(); fail() } catch (e: IOException) { assertTrue(e.message!!.contains("19")) }
         assertEquals(1, driver.closeCount)
     }
+    @Test fun onlyRecognizedActualLinkLossIsRecoverable() = runTest {
+        for (status in listOf(0, 8, 19, 22, 5, 133, 257)) {
+            val driver = Driver(); val transport = GattMdrTransport(driver)
+            transport.connect(); driver.emit(byteArrayOf(7))
+            driver.events.disconnected(status)
+            val failure = runCatching { transport.read() }.exceptionOrNull()
+            assertTrue(failure is IOException)
+            assertEquals(status == 0 || status == 8, failure is TransportDisconnected)
+            assertEquals(1, driver.closeCount)
+        }
+    }
+    @Test fun serviceInvalidationAndNonDisconnectedErrorsNeverQualifyForRecovery() = runTest {
+        for (status in listOf(8, 257)) {
+            val driver = Driver(); val transport = GattMdrTransport(driver)
+            transport.connect()
+            driver.events.connected(status, false)
+            val failure = runCatching { transport.read() }.exceptionOrNull()
+            assertTrue(failure is IOException)
+            assertFalse(failure is TransportDisconnected)
+        }
+    }
+    @Test fun writeAuthorizationErrorIsNotAConnectionTimeout() = runTest {
+        val driver = Driver().also { it.writeStatus = 8 }
+        val transport = GattMdrTransport(driver)
+        transport.connect()
+        val failure = runCatching { transport.write(byteArrayOf(1)) }.exceptionOrNull()
+        assertTrue(failure is IOException); assertFalse(failure is TransportDisconnected)
+    }
+    @Test fun localCloseIgnoresLateDisconnectedCallback() = runTest {
+        val driver = Driver(); val transport = GattMdrTransport(driver)
+        transport.connect(); transport.close()
+        driver.events.disconnected(8)
+        val failure = runCatching { transport.read() }.exceptionOrNull()
+        assertFalse(failure is TransportDisconnected); assertEquals(1, driver.closeCount)
+    }
+    @Test fun firstFailureSurvivesReentrantRecoverableDisconnectDuringDiagnostic() = runTest {
+        val driver = Driver().also { it.writeStatus = 133 }
+        val diagnostics = mutableListOf<String>()
+        var injectedDisconnect = false
+        val transport = GattMdrTransport(driver, diagnostic = { entry ->
+            diagnostics += entry
+            if (entry.startsWith("GATT WRITE status=133")) {
+                injectedDisconnect = true
+                driver.events.disconnected(8)
+            }
+        })
+        transport.connect()
+        val writeFailure = runCatching { transport.write(byteArrayOf(1)) }.exceptionOrNull()
+        val readFailure = runCatching { transport.read() }.exceptionOrNull()
+        assertTrue(injectedDisconnect)
+        assertTrue(diagnostics.contains("GATT disconnected status=8"))
+        for (failure in listOf(writeFailure, readFailure)) {
+            assertTrue(failure is IOException)
+            assertFalse(failure is TransportDisconnected)
+            assertTrue(failure?.message.orEmpty().contains("WRITE status=133"))
+        }
+        assertEquals(1, driver.closeCount)
+    }
+    @Test fun concurrentCloseWaitsUntilDriverReleaseHasCompleted() {
+        val driver = Driver()
+        val transport = GattMdrTransport(driver)
+        runBlocking { transport.connect() }
+        val driverCloseEntered = CountDownLatch(1)
+        val releaseDriverClose = CountDownLatch(1)
+        val driverCloseCompleted = CountDownLatch(1)
+        val secondCloseStarted = CountDownLatch(1)
+        val driverWaitExpired = AtomicBoolean(false)
+        driver.onClose = {
+            driverCloseEntered.countDown()
+            try {
+                if (!releaseDriverClose.await(5, TimeUnit.SECONDS)) driverWaitExpired.set(true)
+            } finally { driverCloseCompleted.countDown() }
+        }
+        val executor = Executors.newFixedThreadPool(2) { task ->
+            Thread(task, "gatt-close-test").apply { isDaemon = true }
+        }
+        try {
+            val firstClose = executor.submit { transport.close() }
+            assertTrue(driverCloseEntered.await(2, TimeUnit.SECONDS))
+            val secondClose = executor.submit {
+                secondCloseStarted.countDown()
+                transport.close()
+            }
+            assertTrue(secondCloseStarted.await(2, TimeUnit.SECONDS))
+            assertThrows(TimeoutException::class.java) { secondClose.get(100, TimeUnit.MILLISECONDS) }
+            assertEquals(1L, driverCloseCompleted.count)
+            releaseDriverClose.countDown()
+            firstClose.get(2, TimeUnit.SECONDS)
+            secondClose.get(2, TimeUnit.SECONDS)
+            assertEquals(0L, driverCloseCompleted.count)
+            assertFalse(driverWaitExpired.get())
+            assertEquals(1, driver.closeCount)
+        } finally {
+            releaseDriverClose.countDown()
+            executor.shutdownNow()
+            assertTrue(executor.awaitTermination(2, TimeUnit.SECONDS))
+        }
+    }
+    @Test fun failedDriverReleaseStopsRecoveryAndKeepsAddressRedacted() = runTest {
+        val driver = Driver().apply { onClose = { throw IOException("release AA:BB:CC:DD:EE:FF failed") } }
+        val transport = GattMdrTransport(driver)
+        var attempts = 0
+        val failure = runCatching {
+            SessionRecovery({ true }).run({ _, _ -> fail("release not confirmed") }) { _, ready ->
+                attempts++
+                transport.connect(); ready(ControlTransport.BLE)
+                driver.events.disconnected(8)
+                transport.read()
+            }
+        }.exceptionOrNull()
+        assertEquals(1, attempts)
+        assertTrue(failure is IOException); assertFalse(failure is TransportDisconnected)
+        assertTrue(failure?.message.orEmpty().contains("關閉未確認"))
+        assertFalse(failure?.message.orEmpty().contains("AA:BB"))
+        assertEquals(1, driver.closeCount)
+    }
     @Test fun receiveOverflowFailsClosed() = runTest {
         val driver = Driver(); val transport = GattMdrTransport(driver)
         transport.connect()
@@ -173,7 +367,7 @@ class GattTransportTest {
             controller.execute(this, ControlAction.Noise(NoiseMode.AMBIENT))
         }
         assertEquals(NoiseMode.AMBIENT, state.noise?.mode)
-        assertTrue(message.contains("耳機已回報"))
+        assertTrue(message.contains("耳機回報設定相符"))
         assertEquals(1, driver.closeCount)
     }
 }

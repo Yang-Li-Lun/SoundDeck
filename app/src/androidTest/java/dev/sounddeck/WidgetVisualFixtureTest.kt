@@ -46,7 +46,7 @@ class WidgetVisualFixtureTest {
                 }
                 val c=i.targetContext.createConfigurationContext(config)
                 val state=HeadphoneState(connection=ConnectionState.READY,functions=setOf(0x6b,0x50),
-                    noise=NoiseState(if(mode in listOf("reference","disabled")) NoiseMode.ANC else NoiseMode.AMBIENT,when(mode) { "reference" -> 20; "odd" -> 7; else -> 12 },mode=="odd",1),
+                    noiseSettled = true, noise=NoiseState(if(mode in listOf("reference","disabled")) NoiseMode.ANC else NoiseMode.AMBIENT,when(mode) { "reference" -> 20; "odd" -> 7; else -> 12 },mode=="odd",1),
                     left=BatteryReading(if(mode=="battery") 19 else 100,true),right=BatteryReading(if(mode=="battery") null else if(mode=="reference") 100 else 99,null),
                     case=BatteryReading(if(mode=="battery") 20 else if(mode=="reference") 53 else 63,false),eq=SonyEvent.Equalizer(0xa0,emptyList()),eqAvailable=true,
                     eqCapability=SonyEvent.EqCapability(6,21,listOf(EqPreset(0xa0,""))))

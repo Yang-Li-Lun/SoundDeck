@@ -10,8 +10,8 @@ android {
         applicationId = "dev.sounddeck"
         minSdk = 26
         targetSdk = 36
-        versionCode = 10
-        versionName = "0.10.0"
+        versionCode = 15
+        versionName = "0.15.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true; buildConfig = true }
@@ -22,7 +22,11 @@ android {
     signingConfigs {
         getByName("debug") { storeFile = rootProject.file(".local/debug.keystore") }
     }
-    buildTypes { release { isMinifyEnabled = false } }
+    buildTypes { release {
+        isMinifyEnabled = false
+        // Retain the existing installation identity; this distribution uses the development key.
+        signingConfig = signingConfigs.getByName("debug")
+    } }
     testOptions { unitTests.isReturnDefaultValues = true }
     lint { abortOnError = true }
 }

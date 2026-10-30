@@ -24,7 +24,7 @@ class AdaptiveLayoutTest {
         var exports=0; var licenses=0; var bluetooth=0; var permissions=0; var notifications=0
         val state = HeadphoneState(connection = ConnectionState.READY, functions = setOf(0x6b,0x50,0xe2,0xfc), dsee=false,dseeAvailable=true,speak=false,speakPreview=0,
             speakSettings=SpeakSettings(SpeakSensitivity.HIGH,1),
-            noise = NoiseState(NoiseMode.AMBIENT, 12, false, 1), left = BatteryReading(100,true), right = BatteryReading(0,false),
+            noiseSettled = true, noise = NoiseState(NoiseMode.AMBIENT, 12, false, 1), left = BatteryReading(100,true), right = BatteryReading(0,false),
             eq = SonyEvent.Equalizer(0xa1,List(6){10}), eqAvailable = true,
             eqCapability = SonyEvent.EqCapability(6,21,listOf(EqPreset(0,""),EqPreset(0xa1,""))),
             message = "耳機回報與要求不同；保留實際狀態。")
@@ -46,11 +46,16 @@ class AdaptiveLayoutTest {
         compose.onNodeWithTag("switch_聚焦人聲").performScrollTo().assertIsDisplayed()
         fullyVisible("switch_聚焦人聲")
         navigate(1,width,height)
+        compose.onNodeWithTag("eq_bands").performScrollTo()
         compose.onNodeWithTag("eq_band_5").performScrollTo().assertIsDisplayed().assertIsEnabled()
-        compose.onNodeWithText("套用自訂 EQ").performScrollTo().assertIsDisplayed()
-        fullyVisible("eq_apply")
+        compose.onNodeWithTag("eq_apply").assertDoesNotExist()
+        val band = compose.onNodeWithTag("eq_band_5").fetchSemanticsNode().boundsInRoot
+        assertTrue("vertical slider retains a 48dp touch target", band.width >= 48 && band.height >= 48)
+        assertTrue("slider fits the viewport",band.height <= compose.onNodeWithTag("page_scroll").fetchSemanticsNode().boundsInRoot.height+1)
         compose.onNodeWithTag("switch_DSEE").performScrollTo().assertIsDisplayed()
         fullyVisible("switch_DSEE")
+        compose.onNodeWithTag("switch_Speak-to-Chat").assertDoesNotExist()
+        navigate(0,width,height)
         compose.onNodeWithTag("switch_Speak-to-Chat").performScrollTo().assertIsDisplayed()
         fullyVisible("switch_Speak-to-Chat")
         compose.onNodeWithTag("speak_sensitivity").performScrollTo().assertIsDisplayed().assertIsEnabled()

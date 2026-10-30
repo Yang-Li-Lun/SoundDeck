@@ -27,7 +27,7 @@ class WidgetClickTest {
             var root:View?=null
             instrument.runOnMainSync {
                 val state=HeadphoneState(connection=ConnectionState.READY,functions=setOf(0x6b,0x50),
-                    noise=NoiseState(NoiseMode.AMBIENT,12,false,1),eq=SonyEvent.Equalizer(0,emptyList()),eqAvailable=true,
+                    noiseSettled = true, noise=NoiseState(NoiseMode.AMBIENT,12,false,1),eq=SonyEvent.Equalizer(0,emptyList()),eqAvailable=true,
                     eqCapability=SonyEvent.EqCapability(6,21,listOf(EqPreset(0,""),EqPreset(0x10,""))))
                 root=SoundDeckWidget.render(c,state,true) { command,level ->
                     PendingIntent.getBroadcast(c,31*command.hashCode()+level,Intent(action).setPackage(c.packageName)

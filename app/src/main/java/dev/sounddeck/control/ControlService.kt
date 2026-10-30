@@ -48,10 +48,10 @@ class ControlService : Service() {
             else -> ShortcutActions.resolve(intent?.action,intent?.getIntExtra("level",-1) ?: -1,repository.state.value.noise?.mode)?.let(repository::submit)
         }
         if (observer == null) observer = scope.launch {
-            repository.state.map { it.copy(diagnostics = emptyList()) }.distinctUntilChanged().collect { state ->
+            repository.state.map { it.copy(diagnostics = emptyList(), diagnosticsDropped = 0) }.distinctUntilChanged().collect { state ->
                 SoundDeckWidget.updateAll(this@ControlService)
                 NoiseTileService.refresh(this@ControlService)
-                if (state.connection == ConnectionState.ERROR || state.connection == ConnectionState.DISCONNECTED) stopSelf()
+                if (state.connection in listOf(ConnectionState.ERROR, ConnectionState.INTERRUPTED, ConnectionState.DISCONNECTED)) stopSelf()
                 else getSystemService(NotificationManager::class.java).notify(NOTIFICATION, notification(state))
             }
         }
@@ -59,7 +59,7 @@ class ControlService : Service() {
     }
     override fun onDestroy() {
         observer?.cancel(); scope.cancel()
-        if (repository.state.value.connection in listOf(ConnectionState.READY, ConnectionState.SYNCING, ConnectionState.CONNECTING)) repository.disconnect(manual = false)
+        if (repository.state.value.connection in listOf(ConnectionState.READY, ConnectionState.SYNCING, ConnectionState.CONNECTING, ConnectionState.RECOVERING)) repository.disconnect(manual = false)
         unregisterReceiver(bluetoothOff)
         stopForeground(STOP_FOREGROUND_REMOVE)
         SoundDeckWidget.updateAll(this); NoiseTileService.refresh(this)

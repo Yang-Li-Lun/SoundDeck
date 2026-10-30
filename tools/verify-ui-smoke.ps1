@@ -91,11 +91,11 @@ try {
         $cancel=Find-Node $dialog '取消'
         if(!$cancel){throw 'Device dialog dismiss control missing'}
         Tap-Node $cancel
-        $end=Scroll-End ($scenario.Name+'-listening-bottom'); if(!(Find-Node $end '聚焦人聲')){throw 'Listening end missing'}; Save-Screen ($scenario.Name+'-listening-bottom')
+        $end=Scroll-End ($scenario.Name+'-listening-bottom'); if(!(Find-Node $end 'Speak-to-Chat')){throw 'Listening end missing'}; Save-Screen ($scenario.Name+'-listening-bottom')
         $ui=Read-Ui ($scenario.Name+'-listening-bottom')
         Tap-Node (Find-Node $ui '音效')
         $ui=Read-Ui ($scenario.Name+'-effects'); Save-Screen ($scenario.Name+'-effects')
-        $end=Scroll-End ($scenario.Name+'-effects-bottom'); if(!(Find-Node $end 'Speak-to-Chat')){throw 'Effects end missing'}; Save-Screen ($scenario.Name+'-effects-bottom')
+        $end=Scroll-End ($scenario.Name+'-effects-bottom'); if(!(Find-Node $end 'DSEE')){throw 'Effects end missing'}; if(Find-Node $end 'Speak-to-Chat'){throw 'Duplicate Speak-to-Chat controls'}; Save-Screen ($scenario.Name+'-effects-bottom')
         $ui=Read-Ui ($scenario.Name+'-effects-bottom')
         Tap-Node (Find-Node $ui '設定')
         $ui=Read-Ui ($scenario.Name+'-settings'); Save-Screen ($scenario.Name+'-settings')

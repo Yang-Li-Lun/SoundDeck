@@ -50,14 +50,14 @@ class ExtendedControllerTest {
         MdrSession(wire, { s = s.receive(it, 1) }).useSession { SonyController({s}, {message=it}).execute(this, ControlAction.AmbientStep(1)) }
         assertEquals(20, s.noise?.level); assertEquals(true, s.noise?.voice)
         assertEquals(20, wire.commands.single { it[0].u() == 0x68 }[6].u())
-        assertTrue(message.contains("已回報"))
+        assertTrue(message.contains("回報設定相符"))
     }
     private fun eqState() = HeadphoneState(connection = ConnectionState.READY, functions = setOf(0x50), eqAvailable = true,
         eq = SonyEvent.Equalizer(0, listOf(10,10,10,10,10,10)), eqCapability = SonyEvent.EqCapability(6,21,listOf(EqPreset(0,""), EqPreset(0x10,""), EqPreset(0xa1,""))))
     @Test fun nextEqUsesLatestPresetAndOnlyDeclaredIds() = runBlocking {
         var s = eqState(); val wire = Wire(); var message = ""
         MdrSession(wire, { s = s.receive(it, 1) }).useSession { SonyController({s}, {message=it}).execute(this, ControlAction.NextEqualizer) }
-        assertEquals(0xa1, s.eq?.preset); assertTrue(message.contains("已回報"))
+        assertEquals(0xa1, s.eq?.preset); assertTrue(message.contains("回報設定相符"))
         assertArrayEquals(bytes(0x58, 0, 0xa1, 0), wire.commands.single { it[0].u() == 0x58 })
     }
     @Test fun customEqComparesReturnedBandsAndRejectedWriteKeepsActual() = runBlocking {
@@ -66,7 +66,26 @@ class ExtendedControllerTest {
             val bands = listOf(0,1,10,12,15,20)
             MdrSession(wire, { s = s.receive(it, 1) }).useSession { SonyController({s}, {message=it}).execute(this, ControlAction.Equalizer(0xa1, bands)) }
             assertEquals(if (accepted) bands else List(6){10}, s.eq?.bands)
-            assertEquals(accepted, message.contains("已回報"))
+            assertEquals(accepted, message.contains("回報設定相符"))
+        }
+    }
+
+    @Test fun liveEqFlushesLatestBandsThroughControllerAndStopsOnRejectedReadback() = runBlocking {
+        for (accepted in listOf(true,false)) {
+            var s=eqState(); val wire=Wire(accepted); val queue=EqualizerUpdates()
+            var message=""; var writes=0
+            queue.offer(ControlAction.Equalizer(0xa1,List(6){11}))
+            MdrSession(wire,{s=s.receive(it,1)}).useSession {
+                val controller=SonyController({s},{message=it})
+                queue.drain { target ->
+                    controller.execute(this,target)
+                    if (++writes==1) repeat(100) { index -> queue.offer(ControlAction.Equalizer(0xa1,List(6){index % 21})) }
+                    s.eq?.preset==target.preset && s.eq?.bands==target.bands
+                }
+            }
+            assertEquals(if(accepted) 2 else 1,wire.commands.count { it[0].u()==0x58 })
+            assertEquals(List(6){if(accepted) 15 else 10},s.eq?.bands)
+            assertEquals(accepted,message.contains("回報設定相符"))
         }
     }
 
@@ -79,7 +98,7 @@ class ExtendedControllerTest {
                 SonyController({s},{message=it}).execute(this,ControlAction.AmbientLevel(target))
             }
             assertEquals(target,s.noise?.level); assertEquals(true,s.noise?.voice)
-            assertTrue(message.contains("已回報"))
+            assertTrue(message.contains("回報設定相符"))
             assertEquals(target,wire.commands.single{it[0].u()==0x68}[6].u())
         }
     }

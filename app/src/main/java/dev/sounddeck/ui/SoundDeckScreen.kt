@@ -3,6 +3,7 @@ package dev.sounddeck.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -22,10 +23,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.text.style.TextAlign
 import dev.sounddeck.BuildConfig
 import dev.sounddeck.data.*
 import dev.sounddeck.protocol.*
@@ -56,6 +61,18 @@ import kotlin.math.roundToInt
                         .padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(message, Modifier.weight(1f).heightIn(max = if (shortWindow) 56.dp else 96.dp).verticalScroll(rememberScrollState()).testTag("message_banner"),
                             style = MaterialTheme.typography.bodyMedium)
+                        when (state.messageRecovery) {
+                            MessageRecovery.REFRESH -> if (state.ready) TextButton(
+                                onClick = { onAction(ControlAction.Refresh) }, enabled = state.pending == null,
+                                contentPadding = PaddingValues(horizontal = 8.dp), modifier = Modifier.testTag("message_refresh")) {
+                                Text("重新整理")
+                            }
+                            MessageRecovery.RECONNECT -> if (!state.ready && state.connection != ConnectionState.CONNECTING &&
+                                state.connection != ConnectionState.SYNCING && state.connection != ConnectionState.RECOVERING) TextButton(
+                                onClick = onConnect, contentPadding = PaddingValues(horizontal = 8.dp),
+                                modifier = Modifier.testTag("message_reconnect")) { Text("重新連線") }
+                            null -> Unit
+                        }
                         IconButton(onClick = onDismissMessage) { Icon(Icons.Rounded.Close, "關閉訊息") }
                     }
                 } }
@@ -65,8 +82,9 @@ import kotlin.math.roundToInt
                 }
             } },
         ) { padding ->
-            Box(Modifier.padding(padding).consumeWindowInsets(padding).fillMaxSize()) {
+            BoxWithConstraints(Modifier.padding(padding).consumeWindowInsets(padding).fillMaxSize()) {
             val feedbackHeight = if (!state.ready || state.message != null) 0.dp else with(LocalDensity.current) { MaterialTheme.typography.bodyMedium.lineHeight.toDp() } + 28.dp
+            val eqViewportHeight = maxHeight - feedbackHeight
             Row(Modifier.fillMaxSize().padding(bottom = feedbackHeight)) {
                 if (rail) NavigationRail(windowInsets = WindowInsets(0,0,0,0), modifier = Modifier.verticalScroll(rememberScrollState()).testTag("side_navigation")) {
                     labels.forEachIndexed { i, label -> NavigationRailItem(selected = page == i, onClick = { page = i },
@@ -81,19 +99,20 @@ import kotlin.math.roundToInt
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 HeadphoneCard(state, permissionGranted, onConnect, onDisconnect); BatteryRow(state)
                             }
-                            Column(Modifier.weight(1f)) { NoiseCard(state, onAction) }
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                NoiseCard(state, onAction)
+                                SpeakCard(state, onAction)
+                            }
                         } else {
                             HeadphoneCard(state, permissionGranted, onConnect, onDisconnect)
                             BatteryRow(state)
                             NoiseCard(state, onAction)
+                            SpeakCard(state, onAction)
                         }
                         1 -> {
-                            EqualizerCard(state, onAction)
+                            EqualizerCard(state, onAction, eqViewportHeight)
                             SectionCard {
                                 SettingSwitch("DSEE", state.dsee, state.canControlDsee) { onAction(ControlAction.Dsee(it)) }
-                                HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                                SettingSwitch("Speak-to-Chat", state.speak, state.canControlSpeak) { onAction(ControlAction.Speak(it)) }
-                                SpeakSensitivitySetting(state, onAction)
                             }
                         }
                         2 -> {
@@ -156,13 +175,14 @@ import kotlin.math.roundToInt
     }
 }
 @Composable private fun HeadphoneCard(state: HeadphoneState, permission: Boolean, connect: () -> Unit, disconnect: () -> Unit) {
-    val busy = state.connection == ConnectionState.CONNECTING || state.connection == ConnectionState.SYNCING
+    val busy = state.connection == ConnectionState.CONNECTING || state.connection == ConnectionState.SYNCING ||
+        state.connection == ConnectionState.RECOVERING
     SectionCard {
         SectionTitle(Icons.Rounded.Headphones, state.model ?: "WF-1000XM5")
         Spacer(Modifier.height(12.dp))
         if (state.ready || busy) OutlinedButton(onClick = disconnect, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
             if (busy) { CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp); Spacer(Modifier.width(8.dp)) }
-            Text(if (busy) "取消連線" else "中斷連線")
+            Text(if (state.connection == ConnectionState.RECOVERING) "取消恢復連線" else if (busy) "取消連線" else "中斷連線")
         } else Button(onClick = connect, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("connect")) {
             Icon(Icons.Rounded.Bluetooth, null); Spacer(Modifier.width(8.dp)); Text(if (permission) "連接耳機" else "授權並連線")
         }
@@ -195,7 +215,8 @@ import kotlin.math.roundToInt
     SectionCard {
         SectionTitle(Icons.Rounded.GraphicEq, "環境聲音控制")
         Spacer(Modifier.height(12.dp))
-        ModeSelector(state.noise?.mode, state.canControlNoise) { action(ControlAction.Noise(it)) }
+        ModeSelector(state.confirmedNoise?.mode, state.canControlNoise) { action(ControlAction.Noise(it)) }
+        if (state.noiseSettled == false) Text(state.noiseStatusLabel, style = MaterialTheme.typography.labelSmall)
         Spacer(Modifier.height(16.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("環境聲音強度", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
@@ -211,6 +232,13 @@ import kotlin.math.roundToInt
         SettingSwitch("聚焦人聲", state.noise?.voice, state.canControlNoise && state.noise?.mode == NoiseMode.AMBIENT) {
             action(ControlAction.VoiceFocus(it))
         }
+    }
+}
+
+@Composable private fun SpeakCard(state: HeadphoneState, action: (ControlAction) -> Unit) {
+    SectionCard {
+        SettingSwitch("Speak-to-Chat", state.speak, state.canControlSpeak) { action(ControlAction.Speak(it)) }
+        SpeakSensitivitySetting(state, action)
     }
 }
 
@@ -239,20 +267,24 @@ import kotlin.math.roundToInt
     }
 }
 
-@Composable private fun EqualizerCard(state: HeadphoneState, action: (ControlAction) -> Unit) {
+@Composable private fun EqualizerCard(state: HeadphoneState, action: (ControlAction) -> Unit, viewportHeight: androidx.compose.ui.unit.Dp) {
     var menu by remember { mutableStateOf(false) }
     val eq = state.eq
     val cap = state.eqCapability
-    var bands: List<Int> by remember(eq, state.pending) { mutableStateOf<List<Int>>(eq?.bands?.map { it - 10 } ?: emptyList()) }
-    val canEdit = state.canControlEq && cap?.bands == 6 && cap.steps == 21 && bands.size == 6 && eq?.preset in listOf(0xa0, 0xa1, 0xa2)
+    val bands = (state.eqTarget?.bands ?: eq?.bands)?.map { it - 10 }.orEmpty()
+    val canEdit = state.canAdjustEqBands
+    val labelHeight = with(LocalDensity.current) { MaterialTheme.typography.labelMedium.lineHeight.toDp() }
+    val sliderHeight = (viewportHeight - labelHeight * 3 - 16.dp).coerceIn(48.dp, 180.dp)
+    LaunchedEffect(state.canControlEq) { if (!state.canControlEq) menu = false }
     SectionCard {
         SectionTitle(Icons.Rounded.Equalizer, "等化器")
         Box(Modifier.fillMaxWidth().padding(top = 16.dp)) {
             OutlinedButton(onClick = { menu = true }, enabled = state.canControlEq, modifier = Modifier.fillMaxWidth().testTag("eq_presets")) {
-                Text(eq?.let { cap?.presets?.firstOrNull { preset -> preset.id == it.preset }?.displayName ?: EqPresetNames.label(it.preset) } ?: "等待耳機回報預設", Modifier.weight(1f))
+                val presetId = state.eqTarget?.preset ?: eq?.preset
+                Text(presetId?.let { cap?.presets?.firstOrNull { preset -> preset.id == it }?.displayName ?: EqPresetNames.label(it) } ?: "等待耳機回報預設", Modifier.weight(1f))
                 Icon(Icons.Rounded.ExpandMore, null)
             }
-            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            DropdownMenu(expanded = menu && state.canControlEq, onDismissRequest = { menu = false }) {
                 cap?.presets?.forEach { preset -> DropdownMenuItem(text = { Text(preset.displayName) }, onClick = {
                     menu = false; action(ControlAction.Equalizer(preset.id))
                 }) }
@@ -260,20 +292,45 @@ import kotlin.math.roundToInt
         }
         if (bands.size == 6 && bands.all { it in -10..10 }) {
             Spacer(Modifier.height(12.dp))
-            listOf("Clear Bass", "400 Hz", "1 kHz", "2.5 kHz", "6.3 kHz", "16 kHz").forEachIndexed { i, label ->
-                Column {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
-                        Text("${bands[i]}", style = MaterialTheme.typography.labelMedium)
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val columnWidth = maxOf(52.dp * LocalDensity.current.fontScale, maxWidth / 6)
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).testTag("eq_bands")) {
+                    listOf("Clear\nBass", "400\nHz", "1\nkHz", "2.5\nkHz", "6.3\nkHz", "16\nkHz").forEachIndexed { i, label ->
+                        Column(Modifier.width(columnWidth), horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("${bands[i]}", style = MaterialTheme.typography.labelMedium,
+                                modifier = Modifier.testTag("eq_gain_$i"))
+                            val change: (Float) -> Unit = { value ->
+                                val gain = value.roundToInt()
+                                if (canEdit && gain != bands[i]) action(ControlAction.Equalizer(state.customEqPreset!!,
+                                    bands.mapIndexed { index, current -> (if (index == i) gain else current) + 10 }))
+                            }
+                            Box(Modifier.width(48.dp).height(sliderHeight).testTag("eq_band_$i").clearAndSetSemantics {
+                                contentDescription = label.replace('\n', ' ')
+                                stateDescription = "${bands[i]}"
+                                progressBarRangeInfo = ProgressBarRangeInfo(bands[i].toFloat(), -10f..10f, 19)
+                                if (!canEdit) disabled()
+                                setProgress { value ->
+                                    val target = value.coerceIn(-10f, 10f).roundToInt()
+                                    if (!canEdit || target == bands[i]) false else { change(target.toFloat()); true }
+                                }
+                            }) {
+                                // Keep accessibility / scrolling bounds vertical while rotating the Material control.
+                                Slider(bands[i].toFloat(), change, Modifier.fillMaxSize().layout { measurable, constraints ->
+                                    val placeable = measurable.measure(Constraints.fixed(constraints.maxHeight, constraints.maxWidth))
+                                    layout(placeable.height, placeable.width) {
+                                        placeable.place((placeable.height - placeable.width) / 2,
+                                            (placeable.width - placeable.height) / 2)
+                                    }
+                                }.rotate(270f), enabled = canEdit, valueRange = -10f..10f, steps = 19)
+                            }
+                            Text(label, textAlign = TextAlign.Center, style = MaterialTheme.typography.labelMedium)
+                        }
                     }
-                    Slider(bands[i].toFloat(), { value -> bands = bands.toMutableList().also { it[i] = value.roundToInt() } },
-                        Modifier.fillMaxWidth().testTag("eq_band_$i"), enabled = canEdit, valueRange = -10f..10f, steps = 19)
                 }
             }
-            Button(onClick = { action(ControlAction.Equalizer(eq!!.preset, bands.map { it + 10 })) },
-                enabled = canEdit && bands.map { it + 10 } != eq?.bands, modifier = Modifier.fillMaxWidth().testTag("eq_apply")) { Text("套用自訂 EQ") }
         }
-        Text(if (state.eqAvailable == false) "耳機回報目前無法調整 EQ。" else if (!state.ready) "連線後載入預設。" else if (!canEdit) "選擇自訂預設以調整頻段。" else "",
+        Text(if (state.eqTarget != null) "正在套用自訂 EQ，等待耳機確認。" else if (state.eqAvailable == false) "耳機回報目前無法調整 EQ。" else if (!state.ready) "連線後載入預設。" else if (!canEdit) "目前無法調整自訂 EQ。" else "調整頻段會自動切換至自訂 EQ。",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 12.dp))
     }
 }
@@ -334,7 +391,7 @@ import kotlin.math.roundToInt
                 contentColor = MaterialTheme.colorScheme.inverseOnSurface, shadowElevation = 3.dp,
                 modifier = Modifier.padding(horizontal = 12.dp).testTag("applied_pill")
                     .semantics { liveRegion = LiveRegionMode.Polite }) {
-                Text("設定已套用", Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                Text("耳機回報設定相符", Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
                     style = MaterialTheme.typography.bodyMedium)
             }
         }

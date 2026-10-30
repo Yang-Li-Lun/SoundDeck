@@ -1,4 +1,4 @@
-# SoundDeck v0.10.0
+# SoundDeck v0.15.0
 
 原生 Android 耳機控制專案，使用 Kotlin、Jetpack Compose 與 Material 3，控制目標為 Sony WF-1000XM5。這是非官方專案，與 Sony 無隸屬關係。App 沒有帳號或網路權限，不需要 Root 或無障礙服務。
 
@@ -6,11 +6,13 @@
 
 - Sony MDR v2 控制：已配對記錄的 BLE GATT／RFCOMM 選路、型號與能力檢查；各入口共用同一 Repository、Controller 與 Session。
 - ANC／Ambient／Off、環境聲音 1–20、App 內聚焦人聲；EQ 預設與受支援的六段自訂、DSEE、Speak-to-Chat 開關及 Type 2 語音偵測靈敏度。控制選項依耳機能力與有效回報啟用。
+- Speak-to-Chat 開關與偵測靈敏度位於「聆聽」頁；「音效」頁提供六段直向 EQ 與 DSEE。頻段由左至右排列，窄螢幕或大字體可橫向捲動；調整頻段自動切換至耳機宣告的自訂預設。
+- 自訂 EQ 每 150ms 合併最新目標，逐筆寫入並回讀確認；拖曳結束後自動送出最後值。確認期間可繼續調整頻段，其他設定暫停；失敗時保留耳機回報值，斷線後不重送未確認的目標，重連時重新讀取狀態。
 - 左耳／充電盒／右耳電量、4×3 Widget、Quick Settings Tile 與前景服務狀態通知。Widget 提供三模式、十個環境聲音刻度及 EQ 切換；通知顯示模式與電量。
 - 寫入後回讀相符才顯示成功；ACK 只代表封包收到。未知格式、逾時或不符回讀不會被當作成功，不盲目重送寫入。
 - App 前景開啟及藍牙恢復時可嘗試重連已成功的裝置／通道；沒有開機自啟動或背景無限重試。
 
-**v0.10.0 尚未完成實體 WF-1000XM5 驗收。** 上述為程式實作範圍，不保證各韌體或手機可用。實際無線寫入、聽感、LE Audio／LC3 音訊並行、Sound Connect 共存、多點情境與 OEM 背景限制仍待確認。min SDK 26 是建置支援下限，不表示各 Android 版本皆已實測。
+**v0.15.0 尚未完成實體 WF-1000XM5 驗收。** 上述為程式實作範圍，不保證各韌體或手機可用。實際無線寫入、聽感、LE Audio／LC3 音訊並行、Sound Connect 共存、多點情境與 OEM 背景限制仍待確認。min SDK 26 是建置支援下限，不表示各 Android 版本皆已實測。
 
 充電盒電量使用目前 Session 最後有效回報，不保證持續即時更新；未知或斷線會清除。Launcher 可能保留程序結束前的 Widget 畫面，操作時仍需檢查連線。Widget 最小宣告為 250×180dp；較矮尺寸與十等分刻度的觸控空間受 Launcher 限制。
 
@@ -51,7 +53,15 @@ $env:PATH = "$env:JAVA_HOME/bin;$env:ANDROID_HOME/platform-tools;$env:PATH"
 - Android 測試 APK：`app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk`
 - JVM 測試與 Lint 報告：`app/build/reports/`
 
-首次 Debug 建置會以 JDK `keytool` 在 `.local/debug.keystore` **產生自己的開發金鑰**，既有金鑰不會被覆寫。此目錄由建置建立，不需從他人取得。`android` 密碼是 Debug 開發用途的公開預設值，不能作為正式發行金鑰。不同開發者產生的 APK 簽章不同，不能覆蓋安裝原簽章版本；請使用獨立測試裝置／模擬器。專案沒有正式 Release 簽署設定。
+首次 Debug 建置會以 JDK `keytool` 在 `.local/debug.keystore` **產生自己的開發金鑰**，既有金鑰不會被覆寫。此目錄由建置建立，不需從他人取得。`android` 密碼是 Debug 開發用途的公開預設值，不能作為正式發行金鑰。不同開發者產生的 APK 簽章不同，不能覆蓋安裝原簽章版本；請使用獨立測試裝置／模擬器。
+
+Release 建置使用同一個既有開發憑證，保留本機交付版的安裝簽章；APK 為 Release variant、不可偵錯，但仍屬開發憑證簽署。發布前必須已有 `.local/debug.keystore`，不會為 Release 另建或替換金鑰：
+
+```powershell
+./tools/build.ps1 -Tasks @(':app:testDebugUnitTest', ':app:lintDebug', ':app:assembleDebug', ':app:assembleDebugAndroidTest', ':app:lintRelease', ':app:assembleRelease')
+```
+
+Release APK 位於 `app/build/outputs/apk/release/app-release.apk`。發布時遞增 `versionCode`／`versionName`，建立新的 `v<versionName>` 標籤與 GitHub Release，附上命名 APK、SHA-256 及驗證範圍，不覆寫歷史標籤或附件；憑證不提交。
 
 ## 可選：模擬器測試
 
@@ -75,7 +85,7 @@ adb -s emulator-5582 emu kill
 - `tools`：建置與可選的專用模擬器驗證工具。
 - `docs`：[協定](docs/PROTOCOL.md)、[LE Audio 邊界](docs/LE_AUDIO.md)、[實機清單](docs/DEVICE_TEST.md)、[驗證範圍](docs/VALIDATION.md)、[授權](docs/LICENSING.md)。
 
-版本標籤為 `v0.10.0`。Git 僅包含公開來源；SDK、快取、`.local`、參考來源副本、診斷／歷史測試紀錄及 `deliverables` 均不提交。本機 `SoundDeck-0.10.0-debug.apk` 是開發簽章測試交付檔，並未隨原始碼或 GitHub Release 發布。重新建置的金鑰、環境與時間不同，APK 不保證逐位元組相同。
+目前版本為 `v0.15.0`。Git 僅包含公開來源；SDK、快取、`.local`、參考來源副本、診斷／歷史測試紀錄及 `deliverables` 均不提交。GitHub Release 附上 `SoundDeck-0.15.0-release.apk`，沿用既有開發憑證；重新建置的金鑰、環境與時間不同，APK 不保證逐位元組相同。驗證結果見 [驗證範圍](docs/VALIDATION.md)。
 
 ## 授權
 

@@ -111,7 +111,14 @@ class MainActivity : ComponentActivity() {
                                         showDevices = false
                                         ControlService.start(this@MainActivity, ControlService.CONNECT, device.address)
                                     }, modifier = Modifier.fillMaxWidth()) {
-                                        Column { Text(device.name); Text(device.description, style = MaterialTheme.typography.bodySmall) }
+                                        Column {
+                                            Text(device.name)
+                                            device.successfulTransport?.let { transport ->
+                                                Text("上次成功控制 · ${transport.label}", style = MaterialTheme.typography.labelMedium,
+                                                    color = MaterialTheme.colorScheme.primary)
+                                            }
+                                            Text(device.description, style = MaterialTheme.typography.bodySmall)
+                                        }
                                     }
                                 }
                             }
@@ -148,13 +155,17 @@ class MainActivity : ComponentActivity() {
             appendLine("耳機回報型號：${s.model ?: "未知"} / 韌體：${s.firmware ?: "未知"}")
             appendLine("協定：${s.protocolVersion ?: "未知"}")
             appendLine("能力：${s.functions?.sorted()?.joinToString { it.toString(16) } ?: "未知"}")
-            appendLine("降噪狀態：${s.noise ?: "未知"}")
+            appendLine("降噪狀態：${s.noise ?: "未知"}; settled=${s.noiseSettled ?: "未知"}")
+            appendLine("DSEE Auto：${s.dsee}; available=${s.dseeAvailable}")
+            appendLine("Speak-to-Chat：${s.speak}; preview=${s.speakPreview}; settings=${s.speakSettings}")
             appendLine("電量：左耳 ${s.left} / 充電盒 ${s.case} / 右耳 ${s.right}")
             appendLine("電量回報時間：${s.batteryUpdatedAt ?: "無"}")
             appendLine("EQ：${s.eq}; 預設：${s.eqCapability?.presets}")
             appendLine("最後回報時間：${s.updatedAt ?: "無"}")
             appendLine("訊息：${s.message ?: "無"}")
-            appendLine("記錄控制診斷及最多 16 bytes 的電量封包；不含藍牙位址、配對金鑰或音訊。")
+            appendLine("被動 MDR 記錄：sid/op/req 為本機關聯編號；TX transportComplete、ACK、回讀相符均不證明聲學效果。")
+            appendLine("僅記錄允許的固定長度設定／狀態／電量 payload；其他 payload 遮蔽，不含藍牙位址、配對金鑰或音訊。")
+            appendLine("最多 ${HeadphoneState.MAX_DIAGNOSTICS} 筆；已淘汰 ${s.diagnosticsDropped} 筆。請於各項操作後匯出。")
             appendLine(s.diagnostics.joinToString("\n"))
         }
     }

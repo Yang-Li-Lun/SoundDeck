@@ -7,8 +7,9 @@ class IdentityRejected(message: String) : IOException(message)
 
 object ConnectionDiagnostics {
     private val address = Regex("(?i)(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}")
+    fun redact(text: String): String = address.replace(text, "<address>")
     fun describe(error: Throwable): String = generateSequence(error) { it.cause }
-        .take(4).joinToString(" <- ") { "${it.javaClass.simpleName}: ${address.replace(it.message.orEmpty(), "<address>").take(240)}" }
+        .take(4).joinToString(" <- ") { "${it.javaClass.simpleName}: ${redact(it.message.orEmpty()).take(240)}" }
 }
 
 /** Fallback is initialization-only, on the chosen address. Never replays a user's command or reconnects a ready session. */

@@ -4,6 +4,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import dev.sounddeck.data.*
 import dev.sounddeck.protocol.*
@@ -24,7 +25,6 @@ class SyntheticControlUiTest {
         compose.setContent { SoundDeckTheme {
             SoundDeckScreen(state,true,{},{},{actions.add(it)},{},{},{},{},{})
         } }
-        compose.onNodeWithTag("nav_1").performClick()
         compose.onNodeWithTag("speak_sensitivity").performScrollTo().performClick()
         compose.onNodeWithTag("speak_sensitivity_HIGH").performClick()
         assertEquals(ControlAction.SpeakDetection(SpeakSensitivity.HIGH),actions.single())
@@ -43,7 +43,7 @@ class SyntheticControlUiTest {
     @Test fun voiceFocusAppCallbackDoesNotOptimisticallyChangeReportedState() {
         val actions=mutableListOf<ControlAction>()
         val state=HeadphoneState(connection=ConnectionState.READY,functions=setOf(0x6b),
-            noise=NoiseState(NoiseMode.AMBIENT,15,false,1))
+            noiseSettled = true, noise=NoiseState(NoiseMode.AMBIENT,15,false,1))
         compose.setContent { SoundDeckTheme {
             SoundDeckScreen(state,true,{},{},{actions.add(it)},{},{},{},{},{})
         } }
@@ -56,7 +56,7 @@ class SyntheticControlUiTest {
     @Test fun controlsDispatchDesiredActionAndWaitForReportedState() {
         val actions = mutableListOf<ControlAction>()
         val state = HeadphoneState(connection = ConnectionState.READY, model = "WF-1000XM5", functions = setOf(0x6b),
-            noise = NoiseState(NoiseMode.ANC, 12, false, 0))
+            noiseSettled = true, noise = NoiseState(NoiseMode.ANC, 12, false, 0))
         compose.setContent {
             SoundDeckTheme("light", false) {
                 SoundDeckScreen(state, true, {}, {}, { actions.add(it) }, {}, {}, {}, {}, {})
@@ -69,7 +69,7 @@ class SyntheticControlUiTest {
     }
     @Test fun pendingTransactionDisablesCompetingControls() {
         val state = HeadphoneState(connection = ConnectionState.READY, functions = setOf(0x6b),
-            noise = NoiseState(NoiseMode.AMBIENT, 12, false, 1), pending = "等待耳機確認…")
+            noiseSettled = true, noise = NoiseState(NoiseMode.AMBIENT, 12, false, 1), pending = "等待耳機確認…")
         compose.setContent { SoundDeckTheme("dark", false) {
             SoundDeckScreen(state, true, {}, {}, {}, {}, {}, {}, {}, {})
         } }
@@ -78,7 +78,7 @@ class SyntheticControlUiTest {
     }
     @Test fun rejectedAmbientAdjustmentRestoresTheReportedLevel() {
         var state by mutableStateOf(HeadphoneState(connection = ConnectionState.READY, functions = setOf(0x6b),
-            noise = NoiseState(NoiseMode.AMBIENT, 5, false, 1)))
+            noiseSettled = true, noise = NoiseState(NoiseMode.AMBIENT, 5, false, 1)))
         val actions = mutableListOf<ControlAction>()
         compose.setContent { SoundDeckTheme("light", false) {
             SoundDeckScreen(state, true, {}, {}, { actions.add(it) }, {}, {}, {}, {}, {})
@@ -91,6 +91,21 @@ class SyntheticControlUiTest {
         compose.runOnIdle { state = state.copy(pending = null, message = "耳機回報與要求不同") }
         compose.onNodeWithText("5 / 20").assertExists()
         compose.onNodeWithText("15 / 20").assertDoesNotExist()
+        compose.onNodeWithTag("ambient_level").assertIsEnabled()
+    }
+
+    @Test fun unsettledNoiseShowsTransitionAndDisablesControlsUntilConfirmed() {
+        var state by mutableStateOf(HeadphoneState(connection = ConnectionState.READY, functions = setOf(0x6b),
+            noise = NoiseState(NoiseMode.AMBIENT, 12, true, 1), noiseSettled = false))
+        compose.setContent { SoundDeckTheme {
+            SoundDeckScreen(state, true, {}, {}, {}, {}, {}, {}, {}, {})
+        } }
+        compose.onNodeWithText("耳機仍在切換中").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("mode_AMBIENT").assertIsNotEnabled()
+        compose.onNodeWithTag("ambient_level").assertIsNotEnabled()
+        compose.runOnIdle { state = state.copy(noiseSettled = true) }
+        compose.onNodeWithText("耳機仍在切換中").assertDoesNotExist()
+        compose.onNodeWithTag("mode_AMBIENT").assertIsEnabled()
         compose.onNodeWithTag("ambient_level").assertIsEnabled()
     }
 
@@ -110,8 +125,70 @@ class SyntheticControlUiTest {
         compose.onNodeWithTag("switch_DSEE").performScrollTo()
         compose.onNode(isToggleable() and hasAnyAncestor(hasTestTag("switch_DSEE"))).performClick()
         assertEquals(ControlAction.Dsee(true),actions.last())
+        compose.onNodeWithTag("switch_Speak-to-Chat").assertDoesNotExist()
+        compose.onNodeWithTag("nav_0").performClick()
         compose.onNodeWithTag("switch_Speak-to-Chat").performScrollTo()
         compose.onNode(isToggleable() and hasAnyAncestor(hasTestTag("switch_Speak-to-Chat"))).performClick()
         assertEquals(ControlAction.Speak(true),actions.last())
+    }
+
+    @Test fun eqDragSelectsCustomImmediatelyAndFailureRestoresHeadphoneValues() {
+        var state by mutableStateOf(HeadphoneState(connection=ConnectionState.READY, functions=setOf(0x50),
+            eq=SonyEvent.Equalizer(0x10,List(6){10}), eqAvailable=true,
+            eqCapability=SonyEvent.EqCapability(6,21,listOf(EqPreset(0x10,""),EqPreset(0xa1,"")))))
+        val actions=mutableListOf<ControlAction>()
+        compose.setContent { SoundDeckTheme {
+            SoundDeckScreen(state,true,{},{},{ action ->
+                actions.add(action)
+                state=state.copy(pending="等待確認",eqTarget=action as ControlAction.Equalizer)
+            },{},{},{},{},{})
+        } }
+        compose.onNodeWithTag("nav_1").performClick()
+        compose.onNodeWithTag("eq_apply").assertDoesNotExist()
+        compose.onNodeWithTag("eq_bands").performScrollTo()
+        val band=compose.onNodeWithTag("eq_band_0").performScrollTo().assertIsEnabled()
+        val bounds=band.fetchSemanticsNode().boundsInRoot
+        assertTrue("slider is vertical",bounds.height>bounds.width*2)
+        band.performSemanticsAction(SemanticsActions.SetProgress) { it(6f) }
+        assertEquals(ControlAction.Equalizer(0xa1,listOf(16,10,10,10,10,10)),actions.last())
+        band.assertIsEnabled()
+        compose.onNodeWithTag("eq_presets").assertIsNotEnabled()
+        compose.onNodeWithTag("eq_band_1").performSemanticsAction(SemanticsActions.SetProgress) { it(-3f) }
+        assertEquals(ControlAction.Equalizer(0xa1,listOf(16,7,10,10,10,10)),actions.last())
+        compose.runOnIdle { state=state.copy(eq=SonyEvent.Equalizer(0xa1,List(6){12})) }
+        compose.onNodeWithTag("eq_gain_0").assertTextEquals("6")
+        compose.runOnIdle { state=state.copy(pending=null,eqTarget=null,message="耳機回報與要求不同") }
+        compose.onNodeWithTag("eq_gain_0").assertTextEquals("2")
+        compose.runOnIdle { state=HeadphoneState() }
+        compose.onNodeWithTag("eq_band_0").assertDoesNotExist()
+        compose.runOnIdle { state=HeadphoneState(connection=ConnectionState.READY,functions=setOf(0x50),
+            eq=SonyEvent.Equalizer(0xa1,List(6){8}),eqAvailable=true,
+            eqCapability=SonyEvent.EqCapability(6,21,listOf(EqPreset(0xa1,"")))) }
+        compose.onNodeWithTag("eq_gain_0").assertTextEquals("-2")
+    }
+
+    @Test fun verticalEqSwipeUpIncreasesGain() {
+        var state by mutableStateOf(HeadphoneState(connection=ConnectionState.READY,functions=setOf(0x50),
+            eq=SonyEvent.Equalizer(0xa1,List(6){10}),eqAvailable=true,
+            eqCapability=SonyEvent.EqCapability(6,21,listOf(EqPreset(0xa1,"")))))
+        val actions=mutableListOf<ControlAction.Equalizer>()
+        compose.setContent { SoundDeckTheme {
+            SoundDeckScreen(state,true,{},{},{ action ->
+                val target=action as ControlAction.Equalizer
+                actions.add(target); state=state.copy(eqTarget=target,pending="等待確認")
+            },{},{},{},{},{})
+        } }
+        compose.onNodeWithTag("nav_1").performClick()
+        compose.onNodeWithTag("eq_bands").performScrollTo()
+        compose.onNodeWithTag("eq_band_2").performScrollTo().performTouchInput {
+            swipe(center,center.copy(y=top+12),durationMillis=500)
+        }
+        assertTrue("upward drag sends a higher gain",actions.isNotEmpty() && actions.last().bands[2]>10)
+        assertTrue("all six bands are retained",actions.all { it.bands.size==6 })
+        val context=androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+        val folder=java.io.File(context.getExternalFilesDir(null),"validation-${BuildConfig.VERSION_NAME}").apply { mkdirs() }
+        folder.resolve("synthetic-vertical-eq.png").outputStream().use {
+            compose.onRoot().captureToImage().asAndroidBitmap().compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)
+        }
     }
 }

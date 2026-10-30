@@ -41,7 +41,7 @@ class SonyControllerTest {
         assertEquals(listOf(0x66, 0x68, 0x66), wire.commands.map { it[0].u() })
         assertArrayEquals(bytes(0x68, 0x17, 1, 1, 1, 1, 18), wire.commands[1])
         assertEquals(NoiseMode.AMBIENT, state.noise?.mode)
-        assertEquals("耳機已回報更新後的設定。", result)
+        assertEquals("耳機回報設定相符。", result)
     }
     @Test fun acknowledgedButRejectedWriteKeepsActualState() = runBlocking {
         val wire = HeadsetWire(NoiseState(NoiseMode.ANC, 10, false, 0), applyWrites = false)
