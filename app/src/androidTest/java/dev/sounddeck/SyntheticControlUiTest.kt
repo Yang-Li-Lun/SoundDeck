@@ -4,6 +4,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import dev.sounddeck.data.*
@@ -148,7 +150,7 @@ class SyntheticControlUiTest {
         compose.onNodeWithTag("eq_bands").performScrollTo()
         val band=compose.onNodeWithTag("eq_band_0").performScrollTo().assertIsEnabled()
         val bounds=band.fetchSemanticsNode().boundsInRoot
-        assertTrue("slider is vertical",bounds.height>bounds.width*2)
+        assertTrue("Clear Bass is horizontal",bounds.width>bounds.height*2)
         band.performSemanticsAction(SemanticsActions.SetProgress) { it(6f) }
         assertEquals(ControlAction.Equalizer(0xa1,listOf(16,10,10,10,10,10)),actions.last())
         band.assertIsEnabled()
@@ -156,9 +158,13 @@ class SyntheticControlUiTest {
         compose.onNodeWithTag("eq_band_1").performSemanticsAction(SemanticsActions.SetProgress) { it(-3f) }
         assertEquals(ControlAction.Equalizer(0xa1,listOf(16,7,10,10,10,10)),actions.last())
         compose.runOnIdle { state=state.copy(eq=SonyEvent.Equalizer(0xa1,List(6){12})) }
-        compose.onNodeWithTag("eq_gain_0").assertTextEquals("6")
+        compose.onNodeWithTag("eq_gain_0").assertTextEquals("+6")
+        compose.onNodeWithTag("eq_confirmed_0").assertTextEquals("耳機已確認：+2")
+        compose.onNodeWithTag("eq_gain_1").assertTextEquals("-3")
+        compose.onNodeWithTag("eq_confirmed_1").assertTextEquals("已確認\n+2")
         compose.runOnIdle { state=state.copy(pending=null,eqTarget=null,message="耳機回報與要求不同") }
-        compose.onNodeWithTag("eq_gain_0").assertTextEquals("2")
+        compose.onNodeWithTag("eq_gain_0").assertTextEquals("+2")
+        compose.onNodeWithTag("eq_gain_1").assertTextEquals("+2")
         compose.runOnIdle { state=HeadphoneState() }
         compose.onNodeWithTag("eq_band_0").assertDoesNotExist()
         compose.runOnIdle { state=HeadphoneState(connection=ConnectionState.READY,functions=setOf(0x50),
@@ -180,15 +186,64 @@ class SyntheticControlUiTest {
         } }
         compose.onNodeWithTag("nav_1").performClick()
         compose.onNodeWithTag("eq_bands").performScrollTo()
-        compose.onNodeWithTag("eq_band_2").performScrollTo().performTouchInput {
-            swipe(center,center.copy(y=top+12),durationMillis=500)
-        }
+        val band = compose.onNodeWithTag("eq_band_2").performScrollTo()
+        val scrollBefore = compose.onNodeWithTag("page_scroll").fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange].value()
+        band.performTouchInput { down(center); moveTo(center.copy(y=top+12), delayMillis=300) }
         assertTrue("upward drag sends a higher gain",actions.isNotEmpty() && actions.last().bands[2]>10)
+        compose.onNodeWithTag("eq_gain_2").assertTextEquals("+${actions.last().bands[2]-10}")
+        compose.onNodeWithTag("eq_confirmed_2").assertTextEquals("已確認\n0")
+        assertEquals("drag must not scroll the page",scrollBefore,
+            compose.onNodeWithTag("page_scroll").fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange].value(),0f)
+        band.performTouchInput { moveTo(center.copy(y=bottom-12), delayMillis=300); up() }
+        assertTrue("downward drag sends a lower gain",actions.last().bands[2]<10)
         assertTrue("all six bands are retained",actions.all { it.bands.size==6 })
+        assertTrue("only 1 kHz changes",actions.all { it.bands.filterIndexed { index,_ -> index!=2 }.all { it==10 } })
         val context=androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
         val folder=java.io.File(context.getExternalFilesDir(null),"validation-${BuildConfig.VERSION_NAME}").apply { mkdirs() }
         folder.resolve("synthetic-vertical-eq.png").outputStream().use {
             compose.onRoot().captureToImage().asAndroidBitmap().compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)
         }
+    }
+
+    @Test fun allSixSlidersKeepWireOrderAndIntegerSteps() {
+        var state by mutableStateOf(HeadphoneState(connection=ConnectionState.READY,functions=setOf(0x50),
+            eq=SonyEvent.Equalizer(0x10,List(6){10}),eqAvailable=true,
+            eqCapability=SonyEvent.EqCapability(6,21,listOf(EqPreset(0x10,""),EqPreset(0xa1,"")))))
+        val actions=mutableListOf<ControlAction.Equalizer>()
+        compose.setContent { SoundDeckTheme {
+            SoundDeckScreen(state,true,{},{},{ action ->
+                val target=action as ControlAction.Equalizer
+                actions.add(target); state=state.copy(eqTarget=target,pending="等待確認")
+            },{},{},{},{},{})
+        } }
+        compose.onNodeWithTag("nav_1").performClick()
+        val gains=listOf(-10,-6,-2,3,7,10)
+        gains.forEachIndexed { i,gain ->
+            compose.onNodeWithTag("eq_band_$i").performScrollTo()
+                .performSemanticsAction(SemanticsActions.SetProgress) { it(gain.toFloat()) }
+            val expected=gains.mapIndexed { index,value -> if(index<=i) value+10 else 10 }
+            assertEquals(ControlAction.Equalizer(0xa1,expected),actions.last())
+            compose.onNodeWithTag("eq_gain_$i").assertTextEquals(if(gain>0) "+$gain" else "$gain")
+        }
+        assertArrayEquals(byteArrayOf(0x58,0,0xa1.toByte(),6,0,4,8,13,17,20),
+            SonyProtocol.setEq(actions.last().preset,actions.last().bands))
+        val band=compose.onNodeWithTag("eq_band_1").performScrollTo()
+        band.performSemanticsAction(SemanticsActions.SetProgress) { it(2.6f) }
+        assertEquals(13,actions.last().bands[1])
+        band.performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+        band.performKeyInput { pressKey(Key.DirectionUp) }
+        assertEquals(14,actions.last().bands[1])
+        band.performKeyInput { pressKey(Key.DirectionDown) }
+        assertEquals(13,actions.last().bands[1])
+        band.performKeyInput { pressKey(Key.MoveEnd) }
+        assertEquals(20,actions.last().bands[1])
+        band.performKeyInput { pressKey(Key.MoveHome) }
+        assertEquals(0,actions.last().bands[1])
+        compose.runOnIdle { state=state.copy(eqAvailable=false) }
+        val count=actions.size
+        band.assertIsNotEnabled().performSemanticsAction(SemanticsActions.SetProgress) { assertFalse(it(8f)) }
+        band.performTouchInput { swipe(center,center.copy(y=top+12)) }
+        // A disabled slider lets the page scroll; settle its fling before disposing the fixture.
+        compose.runOnIdle { assertEquals(count,actions.size) }
     }
 }

@@ -3,7 +3,7 @@ package dev.sounddeck.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -23,13 +23,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.text.style.TextAlign
 import dev.sounddeck.BuildConfig
 import dev.sounddeck.data.*
@@ -274,7 +272,13 @@ import kotlin.math.roundToInt
     val bands = (state.eqTarget?.bands ?: eq?.bands)?.map { it - 10 }.orEmpty()
     val canEdit = state.canAdjustEqBands
     val labelHeight = with(LocalDensity.current) { MaterialTheme.typography.labelMedium.lineHeight.toDp() }
-    val sliderHeight = (viewportHeight - labelHeight * 3 - 16.dp).coerceIn(48.dp, 180.dp)
+    val sliderHeight = (viewportHeight - labelHeight * 6 - 32.dp).coerceIn(48.dp, 200.dp)
+    val reported = eq?.bands?.takeIf { it.size == 6 && it.all { value -> value in 0..20 } }?.map { it - 10 }
+    val change: (Int, Float) -> Unit = { band, value ->
+        val gain = value.coerceIn(-10f, 10f).roundToInt()
+        if (canEdit && gain != bands[band]) action(ControlAction.Equalizer(state.customEqPreset!!,
+            bands.mapIndexed { index, current -> (if (index == band) gain else current) + 10 }))
+    }
     LaunchedEffect(state.canControlEq) { if (!state.canControlEq) menu = false }
     SectionCard {
         SectionTitle(Icons.Rounded.Equalizer, "等化器")
@@ -292,45 +296,51 @@ import kotlin.math.roundToInt
         }
         if (bands.size == 6 && bands.all { it in -10..10 }) {
             Spacer(Modifier.height(12.dp))
-            BoxWithConstraints(Modifier.fillMaxWidth()) {
-                val columnWidth = maxOf(52.dp * LocalDensity.current.fontScale, maxWidth / 6)
-                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).testTag("eq_bands")) {
-                    listOf("Clear\nBass", "400\nHz", "1\nkHz", "2.5\nkHz", "6.3\nkHz", "16\nkHz").forEachIndexed { i, label ->
-                        Column(Modifier.width(columnWidth), horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("${bands[i]}", style = MaterialTheme.typography.labelMedium,
-                                modifier = Modifier.testTag("eq_gain_$i"))
-                            val change: (Float) -> Unit = { value ->
-                                val gain = value.roundToInt()
-                                if (canEdit && gain != bands[i]) action(ControlAction.Equalizer(state.customEqPreset!!,
-                                    bands.mapIndexed { index, current -> (if (index == i) gain else current) + 10 }))
-                            }
-                            Box(Modifier.width(48.dp).height(sliderHeight).testTag("eq_band_$i").clearAndSetSemantics {
-                                contentDescription = label.replace('\n', ' ')
-                                stateDescription = "${bands[i]}"
-                                progressBarRangeInfo = ProgressBarRangeInfo(bands[i].toFloat(), -10f..10f, 19)
-                                if (!canEdit) disabled()
-                                setProgress { value ->
-                                    val target = value.coerceIn(-10f, 10f).roundToInt()
-                                    if (!canEdit || target == bands[i]) false else { change(target.toFloat()); true }
+            BoxWithConstraints(Modifier.fillMaxWidth().testTag("eq_bands")) {
+                val minimumWidth = maxOf(48.dp, 44.dp * LocalDensity.current.fontScale)
+                val columns = (maxWidth / minimumWidth).toInt().coerceIn(1, 5)
+                val labels = listOf("400\nHz", "1\nkHz", "2.5\nkHz", "6.3\nkHz", "16\nkHz")
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    // Wire order stays Clear Bass, 400 Hz, 1 kHz, 2.5 kHz, 6.3 kHz, 16 kHz.
+                    (1..5).toList().chunked(columns).forEach { row ->
+                        Row(Modifier.fillMaxWidth()) {
+                            row.forEach { i ->
+                                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(eqGainLabel(bands[i]), style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.primary, modifier = Modifier.testTag("eq_gain_$i"))
+                                    EqVerticalSlider(bands[i], reported?.get(i), labels[i - 1].replace('\n', ' '),
+                                        canEdit, { change(i, it.toFloat()) },
+                                        Modifier.fillMaxWidth().height(sliderHeight).testTag("eq_band_$i"))
+                                    Text(labels[i - 1], textAlign = TextAlign.Center, style = MaterialTheme.typography.labelMedium)
+                                    Text("已確認\n${reported?.get(i)?.let(::eqGainLabel) ?: "—"}", textAlign = TextAlign.Center,
+                                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.testTag("eq_confirmed_$i"))
                                 }
-                            }) {
-                                // Keep accessibility / scrolling bounds vertical while rotating the Material control.
-                                Slider(bands[i].toFloat(), change, Modifier.fillMaxSize().layout { measurable, constraints ->
-                                    val placeable = measurable.measure(Constraints.fixed(constraints.maxHeight, constraints.maxWidth))
-                                    layout(placeable.height, placeable.width) {
-                                        placeable.place((placeable.height - placeable.width) / 2,
-                                            (placeable.width - placeable.height) / 2)
-                                    }
-                                }.rotate(270f), enabled = canEdit, valueRange = -10f..10f, steps = 19)
                             }
-                            Text(label, textAlign = TextAlign.Center, style = MaterialTheme.typography.labelMedium)
+                            repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                         }
                     }
                 }
             }
+            HorizontalDivider(Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Clear Bass", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+                Text(eqGainLabel(bands[0]), style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary, modifier = Modifier.testTag("eq_gain_0"))
+            }
+            val bassInteraction = remember { MutableInteractionSource() }
+            Slider(bands[0].toFloat(), { change(0, it) }, enabled = canEdit, valueRange = -10f..10f, steps = 19,
+                interactionSource = bassInteraction,
+                thumb = { SliderDefaults.Thumb(bassInteraction, enabled = canEdit, thumbSize = DpSize(4.dp, 48.dp)) },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("eq_band_0").semantics {
+                    contentDescription = "Clear Bass"
+                    stateDescription = "目前 ${eqGainLabel(bands[0])}，耳機已確認 ${reported?.get(0)?.let(::eqGainLabel) ?: "未知"}"
+                })
+            Text("耳機已確認：${reported?.get(0)?.let(::eqGainLabel) ?: "—"}", style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.testTag("eq_confirmed_0"))
         }
-        Text(if (state.eqTarget != null) "正在套用自訂 EQ，等待耳機確認。" else if (state.eqAvailable == false) "耳機回報目前無法調整 EQ。" else if (!state.ready) "連線後載入預設。" else if (!canEdit) "目前無法調整自訂 EQ。" else "調整頻段會自動切換至自訂 EQ。",
+        Text(if (state.eqTarget != null) "正在調整自訂 EQ，等待耳機確認。" else if (state.eqAvailable == false) "耳機回報目前無法調整 EQ。" else if (!state.ready) "連線後載入預設。" else if (!canEdit) "目前無法調整自訂 EQ。" else "調整即自動切換至自訂 EQ；橫線為零點。",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 12.dp))
     }
 }

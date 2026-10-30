@@ -47,11 +47,31 @@ class AdaptiveLayoutTest {
         fullyVisible("switch_聚焦人聲")
         navigate(1,width,height)
         compose.onNodeWithTag("eq_bands").performScrollTo()
-        compose.onNodeWithTag("eq_band_5").performScrollTo().assertIsDisplayed().assertIsEnabled()
+        val eqWidth = compose.onNodeWithTag("eq_bands").fetchSemanticsNode().boundsInRoot.width
+        if (width==320 && height==640 && fontScale==1f) {
+            val bounds=(1..5).map { compose.onNodeWithTag("eq_band_$it").fetchSemanticsNode().boundsInRoot }
+            assertTrue("five bands share one row on a normal phone",bounds.all { it.top==bounds.first().top })
+            assertTrue("all bands fit without horizontal scrolling",bounds.last().right-bounds.first().left<=eqWidth+1)
+        }
+        for (i in 1..5) {
+            compose.onNodeWithTag("eq_band_$i").performScrollTo().assertIsDisplayed().assertIsEnabled()
+            fullyVisible("eq_band_$i")
+            val bounds=compose.onNodeWithTag("eq_band_$i").fetchSemanticsNode().boundsInRoot
+            assertTrue("each band retains a 48dp touch target",bounds.width>=48 && bounds.height>=48)
+        }
         compose.onNodeWithTag("eq_apply").assertDoesNotExist()
         val band = compose.onNodeWithTag("eq_band_5").fetchSemanticsNode().boundsInRoot
         assertTrue("vertical slider retains a 48dp touch target", band.width >= 48 && band.height >= 48)
         assertTrue("slider fits the viewport",band.height <= compose.onNodeWithTag("page_scroll").fetchSemanticsNode().boundsInRoot.height+1)
+        val context=androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+        val folder=java.io.File(context.getExternalFilesDir(null),"validation-${BuildConfig.VERSION_NAME}").apply { mkdirs() }
+        folder.resolve("synthetic-eq-${width}x$height-font$fontScale-${if(dark) "dark" else "light"}.png")
+            .outputStream().use { compose.onRoot().captureToImage().asAndroidBitmap().compress(android.graphics.Bitmap.CompressFormat.PNG,100,it) }
+        compose.onNodeWithTag("eq_band_0").performScrollTo().assertIsDisplayed().assertIsEnabled()
+        fullyVisible("eq_band_0")
+        val bass=compose.onNodeWithTag("eq_band_0").fetchSemanticsNode().boundsInRoot
+        assertTrue("Clear Bass is horizontal",bass.width>=bass.height)
+        compose.onNodeWithTag("eq_band_0").assertTouchHeightIsEqualTo(48.dp)
         compose.onNodeWithTag("switch_DSEE").performScrollTo().assertIsDisplayed()
         fullyVisible("switch_DSEE")
         compose.onNodeWithTag("switch_Speak-to-Chat").assertDoesNotExist()
@@ -60,8 +80,6 @@ class AdaptiveLayoutTest {
         fullyVisible("switch_Speak-to-Chat")
         compose.onNodeWithTag("speak_sensitivity").performScrollTo().assertIsDisplayed().assertIsEnabled()
         fullyVisible("speak_sensitivity")
-        val context=androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
-        val folder=java.io.File(context.getExternalFilesDir(null),"validation-${BuildConfig.VERSION_NAME}").apply { mkdirs() }
         folder.resolve("synthetic-sensitivity-${width}x$height-font$fontScale-${if(dark) "dark" else "light"}.png")
             .outputStream().use { compose.onRoot().captureToImage().asAndroidBitmap().compress(android.graphics.Bitmap.CompressFormat.PNG,100,it) }
         compose.onNodeWithTag("speak_sensitivity").performClick()

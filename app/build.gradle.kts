@@ -10,8 +10,8 @@ android {
         applicationId = "dev.sounddeck"
         minSdk = 26
         targetSdk = 36
-        versionCode = 15
-        versionName = "0.15.0"
+        versionCode = 16
+        versionName = "0.15.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true; buildConfig = true }
